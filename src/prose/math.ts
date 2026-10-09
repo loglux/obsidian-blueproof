@@ -53,7 +53,19 @@ export function touches(spans: readonly Span[], offset: number, length: number):
 	return spans.some((s) => offset < s.start + s.length && s.start < end);
 }
 
-/** The findings that do not touch a formula: nothing inside a formula is ever shown or changed. */
-export function outsideFormulas<T extends Placed>(items: readonly T[], formulas: readonly Span[]): T[] {
-	return formulas.length === 0 ? [...items] : items.filter((i) => !touches(formulas, i.offset, i.length));
+/**
+ * The findings that do not touch a formula: nothing inside a formula is ever shown or changed. Nor the other half of a
+ * mark moved into one: gpt-5.4-mini put the full stop after "$…\right)$." inside ("…\right).$", "the closing
+ * punctuation should be inside the math expression", 3 of 3 on 2026-10-09); the half in the formula is dropped here,
+ * and the half left, the full stop after it removed, was shown with no explanation and is as wrong.
+ */
+export function outsideFormulas<T extends Placed & { replacements?: readonly string[] }>(items: readonly T[], formulas: readonly Span[]): T[] {
+	if (formulas.length === 0) return [...items];
+	const inside = items.filter((i) => touches(formulas, i.offset, i.length));
+	const intoFormula = (i: T): boolean =>
+		i.length > 0 &&
+		i.length <= 2 &&
+		(i.replacements ?? []).every((r) => r.trim() === '') &&
+		formulas.some((f) => i.offset === f.start + f.length && inside.some((x) => touches([f], x.offset, x.length)));
+	return items.filter((i) => !inside.includes(i) && !intoFormula(i));
 }

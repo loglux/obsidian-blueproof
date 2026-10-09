@@ -92,14 +92,23 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 	const found = joinByNotes(text, diff, notes);
 
 	const russian = language.toLowerCase().startsWith('ru');
-	const possibly = (replacement: string): string => (russian ? `Возможно, должно быть: ${replacement}` : `Possibly: ${replacement}`);
+	// A removal said as one: "Possibly:" with nothing after it read as a broken popup (2026-10-09).
+	const possibly = (replacement: string, wrong: string): string =>
+		replacement.trim() === ''
+			? russian
+				? `Возможно, лишнее: «${wrong.trim()}»`
+				: `Possibly not needed: "${wrong.trim()}"`
+			: russian
+				? `Возможно, должно быть: ${replacement}`
+				: `Possibly: ${replacement}`;
 	const result: GrammarIssue[] = [];
 	for (const change of found) {
 		const wrong = originalIn(text, change);
 		if (notAboutWords(wrong, change.replacement)) continue;
 
 		const note = noteFor(notes, wrong, change.replacement);
-		const message = note && note.explanation.length > 0 ? note.explanation : possibly(change.replacement);
+		if (!note && dropsLine(text, change)) continue;
+		const message = note && note.explanation.length > 0 ? note.explanation : possibly(change.replacement, wrong);
 
 		// Other correct fixes the model named for the same fragment ("went" in the feminine next to the masculine, in Russian). The alternative is for the
 		// model's fragment ("I went" with the plural verb → with the masculine one): put it into the text and see what it makes of the stretch this change covers.
@@ -114,11 +123,12 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 			}
 		}
 
+		const narrow = offFormula(wrong, fixes);
 		result.push({
-			offset: change.offset,
-			length: change.length,
+			offset: change.offset + narrow.before,
+			length: change.length - narrow.before - narrow.after,
 			message,
-			replacements: fixes,
+			replacements: fixes.map((f) => f.slice(narrow.before, f.length - narrow.after)),
 			rule: `LLM:${wrong}→${change.replacement}`,
 			source,
 		});
@@ -139,7 +149,7 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 			result.push({
 				offset: change.offset,
 				length: change.length,
-				message: n.explanation.length > 0 ? n.explanation : possibly(change.replacement),
+				message: n.explanation.length > 0 ? n.explanation : possibly(change.replacement, wrong),
 				replacements: [change.replacement],
 				rule: `LLM:${wrong}→${change.replacement}`,
 				source,
@@ -147,6 +157,38 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 		}
 	}
 	return result;
+}
+
+/**
+ * How much of a change, at its start and its end, every fix leaves as it is, when that part holds a formula's `$`. A
+ * formula is part of the sentence and a mark after it is a fix of the prose, but the word diff takes "$a=b$" with the
+ * comma put after it as one change, "$a=b$" → "$a=b$,", which touches the formula and was dropped: a missing comma or
+ * full stop next to a formula was never shown (2026-10-09). Cut to "," put in after it, it is outside the formula.
+ */
+export function offFormula(wrong: string, fixes: readonly string[]): { before: number; after: number } {
+	let before = 0;
+	while (before < wrong.length && fixes.every((f) => before < f.length && f[before] === wrong[before])) before++;
+	let after = 0;
+	while (
+		after < wrong.length - before &&
+		fixes.every((f) => after < f.length - before && f[f.length - 1 - after] === wrong[wrong.length - 1 - after])
+	)
+		after++;
+	const kept = (part: string): boolean => part.includes('$');
+	return { before: kept(wrong.slice(0, before)) ? before : 0, after: kept(wrong.slice(wrong.length - after)) ? after : 0 };
+}
+
+/**
+ * A whole line taken out, with no error named for it: never a fix of grammar. gpt-5.4-mini took a label line ("Suggested
+ * line:" over the sentence it labels) for a note on what to check and gave back the sentence alone, its errors empty,
+ * 10 of 10 on 2026-10-09; the diff made it "remove 'Suggested line:'".
+ */
+function dropsLine(text: string, change: TextChange): boolean {
+	if (change.replacement.trim() !== '') return false;
+	const end = change.offset + change.length;
+	const startsLine = change.offset === 0 || text[change.offset - 1] === '\n';
+	const endsLine = end === text.length || text[end - 1] === '\n' || text[end] === '\n';
+	return startsLine && endsLine && /\p{L}/u.test(originalIn(text, change));
 }
 
 /** Words, in lower case: letters and digits of any script. */

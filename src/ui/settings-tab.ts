@@ -44,13 +44,12 @@ const GRAMMAR_HINTS: Record<string, string> = {
 };
 
 /** Said under every choice that checks spelling: where Obsidian's own spellcheck went (see keepsBuiltinOut in main.ts). */
-const BUILTIN_OUT =
-	" Obsidian's own spellcheck (Editor, Spellcheck) is kept out of the note's text meanwhile, so words are not underlined twice; it is back in a note in a language with no dictionary here.";
+const BUILTIN_OUT = " Obsidian's own spellcheck is paused while BlueProof checks.";
 
 /** What each spelling choice does, as the description under the choice. */
 const SPELLING_HINTS: Record<string, string> = {
 	auto: `Windows' checker on Windows, Hunspell elsewhere.${BUILTIN_OUT}`,
-	windows: `The languages installed in Windows; nothing to set up.${BUILTIN_OUT}`,
+	windows: `The languages installed in Windows.${BUILTIN_OUT}`,
 	hunspell: `LibreOffice's dictionaries: downloaded below, or the system's on Linux.${BUILTIN_OUT}`,
 	off: "Spelling is not checked by BlueProof (Obsidian's own spellcheck works as set in Editor, Spellcheck).",
 };

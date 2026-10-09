@@ -2,7 +2,7 @@
 // (LlmGrammar.cs). The model is asked for the corrected text; what changed is found by comparing the texts, so positions
 // never depend on the model counting characters. No `obsidian` import.
 import type { GrammarIssue } from '../checkers/types';
-import { changedShare, changes, originalIn } from './text-diff';
+import { changedShare, changes, originalIn, type TextChange } from './text-diff';
 
 /** More than this share of the text changed: the model rewrote the paragraph, it did not correct it. */
 export const MAX_CHANGED_SHARE = 0.5;
@@ -85,7 +85,7 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 	}));
 
 	// The model may drop or add a final newline or trailing spaces: compare what it was asked about.
-	const found = changes(text.trimEnd(), corrected.trimEnd());
+	const found = joinByNotes(text, changes(text.trimEnd(), corrected.trimEnd()), notes);
 	if (changedShare(text, found) > MAX_CHANGED_SHARE) return [];
 
 	const russian = language.toLowerCase().startsWith('ru');
@@ -142,6 +142,42 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 				source,
 			});
 		}
+	}
+	return result;
+}
+
+/**
+ * One finding for each error the model named: the changes that fall within the fragment of one of its notes are joined.
+ * Comparing the texts cuts a fix as it can, and a word moved is two changes, each wrong alone: "She dont know where is the
+ * station" → "where the station is" came out as "is" removed (with no explanation, since the model named no such error)
+ * and "station" → "station is", which taken alone gave "where is the station is" (seen 2026-10-09 with gpt-5.4-mini).
+ * A fragment that stands in the text more than once is taken where it covers the most changes.
+ */
+export function joinByNotes(text: string, list: TextChange[], notes: readonly { original: string }[]): TextChange[] {
+	let result = list.map((c) => ({ ...c }));
+	for (const note of notes) {
+		const fragment = note.original;
+		if (fragment.trim() === '') continue;
+		let best: { from: number; to: number; inside: number[] } | null = null;
+		for (let at = text.indexOf(fragment); at >= 0; at = text.indexOf(fragment, at + 1)) {
+			const end = at + fragment.length;
+			const inside = result.flatMap((c, i) => (c.offset >= at && c.offset + c.length <= end ? [i] : []));
+			if (inside.length > (best?.inside.length ?? 1)) best = { from: at, to: end, inside };
+		}
+		if (best === null) continue;
+		const inside = best.inside;
+		const group = inside.map((i) => result[i]!);
+		const start = group[0]!.offset;
+		const last = group[group.length - 1]!;
+		const end = last.offset + last.length;
+		let replacement = '';
+		let at = start;
+		for (const c of group) {
+			replacement += text.substring(at, c.offset) + c.replacement;
+			at = c.offset + c.length;
+		}
+		const joined: TextChange = { offset: start, length: end - start, replacement };
+		result = [...result.filter((_, i) => !inside.includes(i)), joined].sort((x, y) => x.offset - y.offset);
 	}
 	return result;
 }

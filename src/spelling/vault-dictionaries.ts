@@ -131,5 +131,5 @@ export class VaultDictionaries {
 }
 
 const PERSONAL_HEADER =
-	'# Words that are right: names, terms, words of your field. One per line; Лопитал* stands for all the endings.\n' +
+	'# Words that are right: names, terms, words of your field. One per line; Lagrang* stands for Lagrange, Lagrangian and the like.\n' +
 	'# "Add to dictionary" on a spelling finding adds a line here.\n';

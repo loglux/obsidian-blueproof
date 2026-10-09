@@ -83,11 +83,11 @@ export class SpellingChecker implements GrammarChecker {
 			const right = this.getRight(tags);
 			if (right.has(word.check) || (word.parts !== undefined && word.parts.every((p) => p.check.length < 2 || right.has(p.check)))) continue;
 			let correct = engine.isCorrect(tags, word.check);
-			// An abbreviation the dictionary knows with its full stop («стр.», «др.»; seen 148 and 39 times in the author's notes).
+			// An abbreviation the dictionary knows with its full stop (the Russian ones for "page" and "others"; seen 148 and 39 times in the author's notes).
 			// Both forms are asked in the same batch, so the paragraph does not wait twice.
 			const withStop = word.dotted ? engine.isCorrect(tags, `${word.check}.`) : false;
 			if (correct === false && word.dotted) correct = withStop;
-			// A hyphenated word the dictionary does not know as a whole is right when each part is ("какой-либо").
+			// A hyphenated word the dictionary does not know as a whole is right when each part is ("well-known").
 			if (correct === false && word.parts) {
 				const parts = word.parts.map((p) => (p.check.length < 2 ? true : engine.isCorrect(tags, p.check)));
 				correct = parts.includes(null) ? null : parts.every(Boolean);

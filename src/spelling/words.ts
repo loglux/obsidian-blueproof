@@ -1,7 +1,7 @@
 // The words of a paragraph to check for spelling, and what is left out, from a scan of 1.2 million words of the author's
 // notes (2026-10-06, scripts/spell-scan.ts): besides formulas, code and links, the unknown "words" were LaTeX commands
 // written outside `$…$` (`\hline`, `\includegraphics`), HTML tables (`td`, `colspan`), base64 of pasted images, single
-// letters of "т. е." and "б)", stress marks («бо́льшая») and words with a hyphen (checked by their parts if needed);
+// letters of Russian abbreviations ("i. e.") and list markers ("b)"), stress marks over Russian vowels and words with a hyphen (checked by their parts if needed);
 // names written with a capital inside (BlueProof, MathJax) were seen in the first trial in Obsidian.
 // Pure logic, no `obsidian` import.
 import { type Span } from '../prose/math';
@@ -16,11 +16,11 @@ export interface Word {
 	offset: number;
 	length: number;
 	script: WordScript;
-	/** Latin and Cyrillic letters in one word («Pис»): a keyboard slip, flagged without asking a dictionary. */
+	/** Latin and Cyrillic letters in one word (a Russian word typed with a Latin "P"): a keyboard slip, flagged without asking a dictionary. */
 	mixed: boolean;
 	/** For a word with a hyphen: its parts, to check one by one when the whole is not known. */
 	parts?: { check: string; offset: number; length: number }[];
-	/** A full stop right after it: an abbreviation the dictionary may know with the stop («стр.», «др.», «изд.»). */
+	/** A full stop right after it: an abbreviation the dictionary may know with the stop (the Russian ones for "page", "others", "edition"). */
 	dotted: boolean;
 }
 
@@ -62,8 +62,8 @@ export function wordsIn(text: string, skipped: readonly Span[] = []): Word[] {
 		// A word glued to a digit is a name or a code (MU123, x2): not a word.
 		if (/\d/.test(text[offset - 1] ?? '') || /\d/.test(text[offset + raw.length] ?? '')) continue;
 		const letters = raw.replace(/['’-]/g, '').replace(STRESS, '');
-		if (letters.length < 2) continue; // «т», «б)», "x"
-		if (letters.length > 1 && letters === letters.toUpperCase() && letters !== letters.toLowerCase()) continue; // PDF, МГУ
+		if (letters.length < 2) continue; // a lone letter, "b)", "x"
+		if (letters.length > 1 && letters === letters.toUpperCase() && letters !== letters.toLowerCase()) continue; // PDF, NASA
 		// A capital after a small letter inside a word is a name of a program or a product (BlueProof, LanguageTool, MathJax,
 		// iCMA, PowerShell), seen often in the author's notes; such words are left alone.
 		if (/\p{Ll}\p{Lu}/u.test(letters)) continue;

@@ -15,6 +15,10 @@ import { underlineExtension, viewOf } from './editor/extension';
 import { nextFinding, showFindingAt } from './editor/popup';
 import { marksAt } from './editor/problems';
 import { NoteLanguages } from './languages';
+import { setLanguageModel } from './prose/detect';
+import { loadFastText } from './prose/fasttext';
+import fastTextWasm from 'fasttext.wasm.js/dist/core/fastText.common.wasm';
+import languageModel from 'fasttext.wasm.js/dist/models/language-identification/assets/lid.176.ftz';
 import { skippedIn } from './prose/markup';
 import type { Span } from './prose/math';
 import type { Paragraph } from './prose/paragraph';
@@ -74,6 +78,14 @@ export default class BlueProofPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		// The language model (about 0.1 s): until it is loaded no paragraph's language is guessed; then the editors look again.
+		void loadFastText(fastTextWasm, languageModel).then(
+			(model) => {
+				setLanguageModel(model);
+				this.notifyChange();
+			},
+			(error: unknown) => console.error('BlueProof: the language model did not load', error),
+		);
 		this.modelSignature = this.modelServerSignature();
 		this.addSettingTab(new BlueProofSettingTab(this.app, this));
 		// New answers from either checker, and changed settings, make the editors look again.

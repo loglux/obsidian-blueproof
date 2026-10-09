@@ -59,6 +59,8 @@ const context = await esbuild.context({
 		...builtinModules,
 	],
 	format: 'cjs',
+	// fastText's WebAssembly and language model (src/prose/fasttext.ts) go into main.js as bytes: a release holds main.js only.
+	loader: { '.wasm': 'binary', '.ftz': 'binary' },
 	target: 'es2021',
 	logLevel: 'info',
 	sourcemap: prod ? false : 'inline',

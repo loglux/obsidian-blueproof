@@ -29,7 +29,7 @@ export function languageOf(frontmatter: Record<string, unknown> | undefined): st
 
 export function noteDictionary(path: string, text: string, frontmatter: Record<string, unknown> | undefined): NoteDictionary {
 	const name = (path.split('/').pop() ?? path).replace(/\.md$/i, '');
-	// Markdown list markers and checkboxes are not words: "- Лопитал*" is the entry "Лопитал*".
+	// Markdown list markers and checkboxes are not words: "- Lagrang*" is the entry "Lagrang*".
 	const body = bodyOf(text)
 		.split('\n')
 		.map((line) => line.replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)/, ''))

@@ -1,6 +1,7 @@
 import type BlueProofPlugin from '../main';
 import { languageName } from '../checkers/llm';
 import { modelServerOf, parseLanguages } from '../settings';
+import { windowsLanguagesText } from '../spelling/windows';
 
 /**
  * For the settings' Check button: whether each checker in use can work, in a line each. The model server is asked for
@@ -42,9 +43,7 @@ export async function checkSetup(plugin: BlueProofPlugin): Promise<{ ok: boolean
 						: "Spelling: Windows' checker, a language for each.",
 				);
 			} else {
-				const installed = (await dictionary?.installed?.()) ?? [];
-				const names = [...new Set(installed.map((t) => languageName(t.split('-')[0]!) ?? t))];
-				lines.push(`Spelling: Windows' checker, for ${names.join(', ') || 'no language'}; a variant Windows does not have (${installed.some((t) => t.toLowerCase() === 'en-us') ? 'for example en-AU' : 'for example en-US'}) is not checked.`);
+				lines.push(`Spelling: Windows' checker. ${windowsLanguagesText((await dictionary?.installed?.()) ?? [], languageName)}`);
 			}
 		} catch (error) {
 			ok = false;

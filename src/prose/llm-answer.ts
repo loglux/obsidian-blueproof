@@ -39,8 +39,8 @@ const onlyMarkup = (wrong: string, replacement: string): boolean => wrong.replac
 // rows of an align, BlueEdit #115), never a fix of the prose.
 const addsLatex = (wrong: string, replacement: string): boolean => replacement.includes('\\') && !wrong.includes('\\');
 // A word put into another script: a translation, not a fix. Seen on 2026-10-07 with gemma3:12b in mixed Russian and
-// English text ("gradient descent" → "градиентный спуск", an English clause put into English from Russian). A word of
-// both scripts at once (a keyboard slip such as «Pис») is not one script, so its fix is kept.
+// English text ("gradient descent" put into Russian, a Russian clause put into English). A word of
+// both scripts at once (a keyboard slip: a Russian word typed with a Latin "P") is not one script, so its fix is kept.
 const LATIN = /\p{Script=Latin}/u;
 const CYRILLIC = /\p{Script=Cyrillic}/u;
 const scriptOf = (s: string): 'latin' | 'cyrillic' | 'both' | 'none' =>
@@ -98,8 +98,8 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 		const note = noteFor(notes, wrong, change.replacement);
 		const message = note && note.explanation.length > 0 ? note.explanation : possibly(change.replacement);
 
-		// Other correct fixes the model named for the same fragment ("пошла" next to "пошёл"). The alternative is for the
-		// model's fragment ("Я пошли" → "Я пошёл"): put it into the text and see what it makes of the stretch this change covers.
+		// Other correct fixes the model named for the same fragment ("went" in the feminine next to the masculine, in Russian). The alternative is for the
+		// model's fragment ("I went" with the plural verb → with the masculine one): put it into the text and see what it makes of the stretch this change covers.
 		const fixes = [change.replacement];
 		if (note && note.original.length > 0) {
 			for (const alternative of note.alternatives) {

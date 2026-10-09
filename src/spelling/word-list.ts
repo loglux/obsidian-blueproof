@@ -1,9 +1,9 @@
 // A list of words that are right, as dictionaries and the user write them: one entry a word, or a stem with `*` that
-// stands for the stem with up to MAX_ENDING letters after it, so a Russian name or term is written once for all its forms
-// («Лопитал*»: Лопиталь, Лопиталя, Лопиталем, Лопиталю), while a typo inside the stem is still caught. Letter case does not
+// stands for the stem with up to MAX_ENDING letters after it, so a name or term is written once for all its forms
+// ("Lagrang*": Lagrange, Lagrangian, Lagrangians; a Russian name has many more), while a typo inside the stem is still caught. Letter case does not
 // matter. No `obsidian` import.
 
-/** The most letters a `*` stands for: Russian endings («-ыми», «-ного») fit, a different word rarely does. */
+/** The most letters a `*` stands for: Russian endings (up to four letters) fit, a different word rarely does. */
 export const MAX_ENDING = 4;
 
 export class WordList {

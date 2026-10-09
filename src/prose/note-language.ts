@@ -73,17 +73,20 @@ export function languageChoices(...groups: readonly (readonly string[])[]): stri
 /**
  * The menu's languages in labelled sections, so that a language does not seem to come from the note when it comes from
  * the settings (seen 2026-10-07: Russian offered for an English note, from the user's list): the note's own (stated or
- * found), the user's list, the downloaded dictionaries'. Each language once, in the first section it belongs to.
+ * found), the user's list, the spelling checker's (the downloaded Hunspell dictionaries, or the languages Windows has, so
+ * that a language can be chosen when it was guessed wrong: seen 2026-10-09, a Russian note found to be Bulgarian with
+ * nothing else to choose under "auto"). Each language once, in the first section it belongs to.
  */
 export function languageSections(
 	note: readonly string[],
 	listed: readonly string[],
 	downloaded: readonly string[],
+	downloadedTitle = 'Downloaded dictionaries',
 ): { title: string; codes: string[] }[] {
 	const groups = [
 		{ title: 'In this note', from: note },
 		{ title: 'Your languages', from: listed },
-		{ title: 'Downloaded dictionaries', from: downloaded },
+		{ title: downloadedTitle, from: downloaded },
 	];
 	const sections = groups.map((g) => ({ title: g.title, codes: [] as string[] }));
 	for (const code of languageChoices(note, listed, downloaded)) {

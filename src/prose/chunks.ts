@@ -27,7 +27,7 @@ const inside = (spans: readonly Span[], at: number): boolean => spans.some((s) =
 
 /**
  * Where a new sentence starts: after `.`, `!`, `?` or `…` (and closing quotes or brackets), white space, then a capital
- * letter, a digit or an opening quote — not after an abbreviation or a single letter ("A. Smith", "т. е."), and not
+ * letter, a digit or an opening quote — not after an abbreviation or a single letter ("A. Smith", a Russian "i. e."), and not
  * inside a formula.
  */
 export function sentenceStarts(text: string, formulas: readonly Span[]): number[] {

@@ -1,7 +1,8 @@
 name: Release Obsidian plugin
 
-# A tag equal to the version in manifest.json builds the plugin on GitHub's runners, attests the files and makes a draft
-# release with them; the notes are written and the draft published by hand.
+# A tag equal to the version in manifest.json builds the plugin on GitHub's runners, attests the files and publishes a
+# release with them at once: a draft is invisible to Obsidian's directory, which then reports the manifest's version as
+# having no release (seen 2026-10-09). The notes are written into the release afterwards.
 on:
     push:
         tags:
@@ -40,4 +41,4 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   tag="${GITHUB_REF#refs/tags/}"
-                  gh release create "$tag" --title="$tag" --draft main.js manifest.json styles.css
+                  gh release create "$tag" --title="$tag" --generate-notes main.js manifest.json styles.css

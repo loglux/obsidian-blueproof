@@ -33,7 +33,7 @@ const CONTEXT = 16;
 
 /**
  * Finds what a proofreader changed by comparing its corrected text with the original, word by word (words, spaces and
- * punctuation are separate tokens). A pure insertion ("сказал что" → "сказал, что") is widened to the word before it, so
+ * punctuation are separate tokens). A pure insertion ("however it" → "however, it") is widened to the word before it, so
  * it can be underlined and replaced like any other change.
  */
 export function changes(original: string, corrected: string): TextChange[] {
@@ -119,8 +119,8 @@ export function changes(original: string, corrected: string): TextChange[] {
 }
 
 /**
- * Changes with only spaces between them are one change. The comparison pairs words of a rewritten stretch as it can: "что
- * бы подготовится" → "чтобы подготовиться" came out as "что" → "чтобы", "бы" → "подготовиться" and "подготовится " → "",
+ * Changes with only spaces between them are one change. The comparison pairs words of a rewritten stretch as it can: three
+ * neighbouring Russian words rewritten at once (two joined into one, the next one's ending fixed) came out as three changes,
  * each wrong alone, so taking one fix put a word twice into the text (seen 2026-10-09 with gpt-5.4-mini). Joined, the
  * stretch is one finding with the model's own words as its fix. Spaces both ends share are left out again.
  */

@@ -5,6 +5,7 @@ import { languageName } from '../checkers/llm';
 import { dictionaryLabel, HunspellModal } from './hunspell-modal';
 import { ChecklistModal } from './checklist-modal';
 import type { HunspellState } from '../spelling/service';
+import { windowsLanguagesText } from '../spelling/windows';
 import { STYLE_FOCUSES } from '../style/focus';
 import {
 	type BlueProofSettings,
@@ -53,6 +54,9 @@ const SPELLING_HINTS: Record<string, string> = {
 	hunspell: `LibreOffice's dictionaries: downloaded below, or the system's on Linux.${BUILTIN_OUT}`,
 	off: "Spelling is not checked by BlueProof (Obsidian's own spellcheck works as set in Editor, Spellcheck).",
 };
+
+/** "1 entry", "12 entries". */
+const entries = (n: number): string => `${n} ${n === 1 ? 'entry' : 'entries'}`;
 
 export class BlueProofSettingTab extends PluginSettingTab {
 	plugin: BlueProofPlugin;
@@ -186,8 +190,33 @@ export class BlueProofSettingTab extends PluginSettingTab {
 		return this.plugin.dictionaries.all.map((d) => ({
 			id: d.path,
 			label: d.name,
-			hint: `${language(d.language)}; ${d.words.size} entries`,
+			hint: `${language(d.language)}; ${entries(d.words.size)}`,
 		}));
+	}
+
+	/** What Windows has spelling for, asked when the settings are shown; a string is why it could not be asked. */
+	private windowsState: string[] | string | null = null;
+	private windowsAsking = false;
+
+	/** Asks Windows which languages it has, once, while its checker is the one; the row shows the answer. */
+	private askWindows(): void {
+		if (this.plugin.spelling.kind() !== 'windows' || this.windowsState !== null || this.windowsAsking) return;
+		this.windowsAsking = true;
+		void this.plugin.spelling.windowsLanguages().then(
+			(tags) => this.windowsAnswered(tags),
+			(error: unknown) => this.windowsAnswered(`Windows' checker did not answer (${error instanceof Error ? error.message : String(error)}).`),
+		);
+	}
+
+	private windowsAnswered(state: string[] | string): void {
+		this.windowsState = state;
+		this.windowsAsking = false;
+		this.update();
+	}
+
+	private windowsSummary(): string {
+		if (this.windowsState === null) return 'Asking Windows…';
+		return typeof this.windowsState === 'string' ? this.windowsState : windowsLanguagesText(this.windowsState, languageName);
 	}
 
 	/** Where each language's Hunspell dictionary is, looked up when the settings are shown. */
@@ -241,8 +270,9 @@ export class BlueProofSettingTab extends PluginSettingTab {
 		const all = this.plugin.dictionaries.all;
 		if (all.length === 0) return `No dictionary notes yet in ${this.plugin.dictionaries.folder}: "Add to dictionary" on a finding, or Find words…, makes one.`;
 		const on = all.filter((d) => !off.includes(d.path));
-		const n = on.reduce((sum, d) => sum + d.words.size, 0);
-		return `${on.length === all.length ? `All ${all.length}` : `${on.length} of ${all.length}`} on, ${n} entries: ${on.map((d) => d.name).join(', ') || 'none'}.`;
+		const offNames = all.filter((d) => off.includes(d.path)).map((d) => d.name);
+		const onText = on.length > 0 ? `On: ${on.map((d) => `${d.name} (${entries(d.words.size)})`).join(', ')}.` : 'None on.';
+		return offNames.length > 0 ? `${onText} Off: ${offNames.join(', ')}.` : onText;
 	}
 
 	private openDictionaries(): void {
@@ -427,6 +457,11 @@ export class BlueProofSettingTab extends PluginSettingTab {
 						name: 'Checked by',
 						desc: SPELLING_HINTS[s().spelling],
 						control: { type: 'dropdown', key: 'spelling', options: SPELLING_ENGINES },
+					},
+					{
+						name: 'Languages in Windows',
+						visible: () => this.plugin.spelling.kind() === 'windows',
+						...this.drawn(() => this.windowsSummary(), () => this.askWindows()),
 					},
 					{
 						name: 'Hunspell dictionaries',

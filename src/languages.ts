@@ -3,6 +3,7 @@
 import type { Text } from '@codemirror/state';
 import type { App, TFile } from 'obsidian';
 import { blankSpans, chooseLanguage, LanguageGuesses, noteLanguages } from './prose/language';
+import { languageModelReady } from './prose/detect';
 import { statedLanguages } from './prose/note-language';
 import { type Paragraph, paragraphsBetween } from './prose/paragraph';
 import { parseLanguages } from './settings';
@@ -47,6 +48,8 @@ export class NoteLanguages {
 			}),
 			last ? (this.lastFound.get(last) ?? []) : [],
 		);
+		// Before the language model is loaded nothing is found from the text: not kept, so that it is found once it is.
+		if (!languageModelReady()) return languages;
 		this.found.set(doc, { listed, languages });
 		if (last) this.lastFound.set(last, languages);
 		return languages;

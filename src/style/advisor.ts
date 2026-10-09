@@ -194,7 +194,7 @@ function join(original: string, changes: readonly TextChange[], bySentence: bool
 
 /** A group as a change to offer, or null when it would lose (or invent) markup or a link. */
 function offer(original: string, g: Group, notes: readonly { original: string; reason: string }[]): StyleChange | null {
-	// Spaces both sides keep at the edges are not part of the change: «данных » → «данные » is «данных» → «данные».
+	// Spaces both sides keep at the edges are not part of the change: "data " → "date " is "data" → "date".
 	let { offset, length, replacement } = g;
 	while (length > 0 && replacement.length > 0 && original[offset + length - 1] === ' ' && replacement.endsWith(' ')) {
 		length--;

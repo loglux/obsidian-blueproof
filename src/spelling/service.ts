@@ -4,12 +4,12 @@ import { type App, Notice, Platform } from 'obsidian';
 import { type BlueProofSettings, parseLanguages } from '../settings';
 import type { HunspellHost } from '../ui/hunspell-modal';
 import { SpellingChecker } from './checker';
-import { SpellingEngine } from './engine';
+import { type Dictionary, SpellingEngine } from './engine';
 import { Helper } from './helper';
 import { HunspellDictionaries } from './hunspell';
 import { type CatalogueEntry, libreOfficeFor } from './hunspell-sources';
 import type { VaultDictionaries } from './vault-dictionaries';
-import { windowsDictionary } from './windows';
+import { windowsDictionary, windowsMenuTags } from './windows';
 import { startWindowsHelper } from './windows-process';
 import { rightWords } from './word-list';
 import { skippedIn } from '../prose/markup';
@@ -39,6 +39,8 @@ export class SpellingService implements HunspellHost {
 	private current: { kind: string; engine: SpellingEngine; stop: () => void } | null = null;
 	/** The Hunspell dictionaries downloaded, as tags, for the language menu; read once, again after a download. */
 	downloadedTags: string[] = [];
+	/** The languages Windows has spelling for, one tag each, for the language menu; asked when its checker starts. */
+	windowsTags: string[] = [];
 
 	readonly checker: SpellingChecker;
 	/** Whether the engine has a dictionary for a language, as it answered; forgotten when the engine is made again. */
@@ -75,6 +77,7 @@ export class SpellingService implements HunspellHost {
 		const engine = new SpellingEngine(dictionary, timer);
 		const stop = engine.onChange(() => this.host.notifyChange());
 		this.current = { kind, engine, stop };
+		if (kind === 'windows') void this.readWindowsTags(dictionary);
 		return engine;
 	}
 
@@ -96,6 +99,14 @@ export class SpellingService implements HunspellHost {
 			() => this.known.delete(language),
 		);
 		return null;
+	}
+
+	private async readWindowsTags(dictionary: Dictionary): Promise<void> {
+		try {
+			this.windowsTags = windowsMenuTags((await dictionary.installed?.()) ?? []);
+		} catch {
+			this.windowsTags = [];
+		}
 	}
 
 	private stopEngine(): void {
@@ -147,6 +158,11 @@ export class SpellingService implements HunspellHost {
 	 * ones in use. Only file names are looked at. Until 2026-10-08 the system's were left out with "auto", and on Ubuntu
 	 * with en_GB, en_US and ru_RU installed Check said there was no dictionary, while spelling worked with them.
 	 */
+	/** The languages Windows has spelling for (Windows' checker only; empty for Hunspell). */
+	async windowsLanguages(): Promise<string[]> {
+		return this.kind() === 'windows' ? ((await this.engine()?.dictionary.installed?.()) ?? []) : [];
+	}
+
 	hunspellStatus(): Promise<HunspellState[]> {
 		return this.withHunspell(async (h) => {
 			const tags = parseLanguages(this.host.settings.languages);

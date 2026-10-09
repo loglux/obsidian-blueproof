@@ -6,7 +6,7 @@
 //
 // BlueEdit's rule (`Prose.LanguageOf`): Russian when Cyrillic letters outnumber Latin, otherwise the first English variant
 // of the user's list. This is the same idea for any script, with the languages the user lists instead of two fixed ones.
-import { AUTO_LANGUAGES, detectAmong } from './detect';
+import { detectAmong, languageModelReady } from './detect';
 import type { Span } from './math';
 
 export type Script = 'latin' | 'cyrillic' | 'greek' | 'arabic' | 'hebrew' | 'han' | 'kana' | 'hangul' | 'devanagari' | 'thai';
@@ -83,37 +83,41 @@ export const FEW_LETTERS = 25;
 const letters = (text: string): number => (text.match(/\p{L}/gu) ?? []).length;
 
 /**
- * What "auto" guesses among before a note's own languages are known: the languages franc knows that also have a
- * LibreOffice dictionary (the plugin can check their spelling). Measured on 1500 Tatoeba texts in 12 languages: all 84 of
- * franc's gave 93% of paragraphs right, these 95%; a short list of the user's own, 98%.
+ * What "auto" guesses among before a note's own languages are known: the languages that have a LibreOffice dictionary (the
+ * plugin can check their spelling), all of which fastText knows. With franc (until 2026-10-09) this was cut to the ones
+ * franc knew, and measured on 1500 Tatoeba texts in 12 languages: all 84 of franc's gave 93% of paragraphs right, these 95%.
  */
-export const GUESS_AMONG: readonly string[] = AUTO_LANGUAGES.filter((l) =>
-	[
-		'af', 'ar', 'be', 'bg', 'bn', 'bs', 'ca', 'cs', 'da', 'de', 'el', 'en', 'eo', 'es', 'et', 'fa', 'fr', 'gl', 'gu', 'he',
-		'hi', 'hr', 'hu', 'id', 'is', 'it', 'kn', 'ko', 'lt', 'lv', 'mn', 'mr', 'nb', 'ne', 'nl', 'nn', 'pl', 'pt', 'ro', 'ru',
-		'sk', 'sl', 'sq', 'sr', 'sv', 'sw', 'ta', 'te', 'th', 'tr', 'uk', 'vi',
-	].includes(l),
-);
+export const GUESS_AMONG: readonly string[] = [
+	'af', 'ar', 'be', 'bg', 'bn', 'bs', 'ca', 'cs', 'da', 'de', 'el', 'en', 'eo', 'es', 'et', 'fa', 'fr', 'gl', 'gu', 'he',
+	'hi', 'hr', 'hu', 'id', 'is', 'it', 'kn', 'ko', 'lt', 'lv', 'mn', 'mr', 'nb', 'ne', 'nl', 'nn', 'pl', 'pt', 'ro', 'ru',
+	'sk', 'sl', 'sq', 'sr', 'sv', 'sw', 'ta', 'te', 'th', 'tr', 'uk', 'vi',
+];
 
 /**
  * The language to check `text` as. `candidates` are the user's languages (empty for "auto"); `note` the languages of the
  * note the text is in, most used first (its property, or `noteLanguages` of its paragraphs), when known. `text` should
  * have its formulas blanked out, or the variables in them (x, y) would count as Latin letters.
  *
- * - "auto": the note's languages stand for the user's list; with none known yet, franc among `GUESS_AMONG`, answering a
- *   primary code ("de");
+ * - "auto": the note's languages stand for the user's list; with none known yet, the model among those of `GUESS_AMONG`
+ *   written in the text's script, answering a primary code ("de");
  * - one candidate: that one;
  * - several: those written in the script of the text; if that leaves one, it; if several (English and German, both Latin),
- *   the one the text is in by trigram statistics (`detectAmong`), and the first listed when that cannot tell;
+ *   the one the text is in by the language model (`detectAmong`), and the first listed when that cannot tell;
  * - a short text (a heading, a few words: fewer than FEW_LETTERS letters) is not guessed from: it takes the note's main
- *   language when that is one of the choices (58% of lines of up to three words were right by franc among twelve);
+ *   language when that is one of the choices (58% of lines of up to three words were right by franc among twelve; 89%
+ *   by fastText, measured 2026-10-09, but a note's language is still the safer guess);
  * - none written in that script (Greek text and a list of Russian and English): `auto`, the checkers decide.
  */
 export function chooseLanguage(text: string, candidates: readonly string[], note: readonly string[] = []): string {
 	const short = letters(text) < FEW_LETTERS;
 	if (candidates.length === 0) {
 		if (note.length > 0) return chooseLanguage(text, note, note);
-		return short ? 'auto' : (detectAmong(text, GUESS_AMONG) ?? 'auto');
+		if (short) return 'auto';
+		// Among the languages written in the text's script (with franc, a Russian paragraph once came out Bosnian, whose
+		// data franc has in Cyrillic; kept for fastText, which needs it less).
+		const script = dominantScript(text);
+		const among = GUESS_AMONG.filter((l) => scriptOf(l) === script);
+		return detectAmong(text, among.length > 0 ? among : GUESS_AMONG) ?? 'auto';
 	}
 	if (candidates.length === 1) return candidates[0]!;
 	const main = note.find((l) => candidates.includes(l)) ?? null;
@@ -128,8 +132,8 @@ export function chooseLanguage(text: string, candidates: readonly string[], note
 
 /**
  * `chooseLanguage` without a note, remembered by text: a note's languages are found again after each edit, and franc over
- * 400 paragraphs took 90 ms under "auto" (measured 2026-10-08), while an edit changes one of them. The oldest answers go
- * once there are `max`.
+ * 400 paragraphs took 90 ms under "auto" (measured 2026-10-08; fastText is about as quick), while an edit changes one of
+ * them. The oldest answers go once there are `max`. Answers given before the model was loaded are not kept.
  */
 export class LanguageGuesses {
 	private readonly kept = new Map<string, string>();
@@ -142,6 +146,7 @@ ${text}`;
 		const kept = this.kept.get(key);
 		if (kept !== undefined) return kept;
 		const language = chooseLanguage(text, candidates);
+		if (!languageModelReady()) return language;
 		if (this.kept.size >= this.max) this.kept.delete(this.kept.keys().next().value!);
 		this.kept.set(key, language);
 		return language;

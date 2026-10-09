@@ -77,7 +77,7 @@ export function paragraphWith(lines: readonly string[], info: readonly LineInfo[
 	const endsSentence = (i: number): boolean => /[.!?]$/u.test(lines[i]!.trimEnd().replace(CLOSERS, ''));
 	/** A prose line that begins with a display formula ("$$r=7$$ and slant height"). */
 	const startsWithFormula = (i: number): boolean => lines[i]!.trimStart().startsWith('$$');
-	/** The line goes on with the sentence before it: its first letter is lower case ("where", "and", "так что"). */
+	/** The line goes on with the sentence before it: its first letter is lower case ("where", "and", "so that"). */
 	const goesOn = (i: number): boolean => /^\p{Ll}/u.test(lines[i]!.trimStart());
 
 	if (!isProse(line)) return null;

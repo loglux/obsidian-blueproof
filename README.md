@@ -9,8 +9,7 @@ rule-based checkers miss, as you write. Desktop only.
 ## Features
 
 - **Finds more.** A language model reads the whole sentence, and the one before it: "Mary opened the book. Then he wrote
-  the answer." On our test sentences models found far more errors than LanguageTool
-  ([test results](docs/test-results.md)).
+  the answer." On our test sentences models found far more errors than LanguageTool.
 - **Underlines as you write**: red for spelling, blue for grammar. Click one for the fixes.
 - **Spelling** with Windows' own checker or Hunspell dictionaries, plus your own word lists kept as notes.
 - **Many languages**, a different one in each paragraph.
@@ -32,15 +31,14 @@ up to date.
 ## Setup
 
 **Spelling** works at once on Windows (Windows' own spell checker), in the languages installed in Windows: a note in
-American English needs English (United States) there, not only English (United Kingdom). On Linux and macOS, download a
+American English needs English (United States) there, not only English (United Kingdom); **Settings → BlueProof → Spelling** lists the ones Windows has. On Linux and macOS, download a
 dictionary for your language in **Settings → BlueProof → Spelling → Manage…** (the system's Hunspell dictionaries count
 too). (Not tested on macOS yet.) A language with no dictionary gets ⚠ in the status bar.
 
 While BlueProof checks spelling, Obsidian's own spellcheck (**Settings → Editor → Spellcheck**) is kept out of the
 note's text, so a word is not underlined twice. That setting is not changed: turn BlueProof's spelling, checking while
 typing or the plugin off, or mark a note `blueproof: off`, and Obsidian's is back; in a note with a language BlueProof
-has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the note's title and properties. How the two differ:
-[comparison](docs/comparison.md#obsidians-own-spellcheck).
+has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the note's title and properties.
 
 **Grammar** needs a language model. Choose where it runs:
 
@@ -51,7 +49,7 @@ has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the
 
 1. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
 2. **Settings → BlueProof → Model server**: choose **OpenAI**, paste the key, pick a model (`gpt-5.4-mini` did best in
-   [our tests](docs/test-results.md)).
+   our tests).
 3. Press **Check** at the top of the settings.
 
 ![Settings with OpenAI](docs/images/settings-openai.png)
@@ -140,8 +138,6 @@ frequent first, so you can add the right ones in one go. Examples to start from:
 - **Long paragraphs are cut at sentence ends**, each piece with the sentence before it for context: as many errors found
   as sending the whole paragraph, two to four times sooner.
 
-Our test numbers and their limits: [docs/test-results.md](docs/test-results.md).
-
 ## Privacy
 
 - The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI if you chose
@@ -154,10 +150,16 @@ Our test numbers and their limits: [docs/test-results.md](docs/test-results.md).
   `~/Library/Spelling`, `/Library/Spelling`); nothing is written there.
 - On Windows, spelling goes through a PowerShell process the plugin starts; it gets single words, nothing leaves the
   computer.
+- The language of each paragraph is found inside the plugin, by fastText's language model built into it (about 1 MB,
+  part of `main.js`); nothing is downloaded or sent for it.
 - The plugin never installs or starts servers; you run them.
 
 ## Licence
 
-MIT. Bundled: [nspell](https://github.com/wooorm/nspell) and [franc](https://github.com/wooorm/franc) with their dependencies (all MIT). The
+MIT. Bundled: [nspell](https://github.com/wooorm/nspell) with its dependencies (MIT);
+[fastText](https://github.com/facebookresearch/fastText) (MIT) compiled to WebAssembly by
+[fasttext.wasm.js](https://github.com/yunsii/fasttext.wasm.js) (MIT), with fastText's language identification model
+[lid.176.ftz](https://fasttext.cc/docs/en/language-identification.html) by Facebook, under
+[CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), unchanged. The
 Hunspell dictionaries are not bundled: they are downloaded on request from LibreOffice's repository, each under its own
 licence (shown in the Hunspell window).

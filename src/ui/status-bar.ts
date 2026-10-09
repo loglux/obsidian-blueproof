@@ -126,7 +126,10 @@ export class StatusBar {
 		if (found.length > 1 && !same(found)) {
 			menu.addItem((item) => item.setTitle(found.map(languageLabel).join(', ')).onClick(() => void this.setNoteLanguages(file, key, found)));
 		}
-		for (const section of languageSections([...stated, ...found], parseLanguages(this.plugin.settings.languages), this.plugin.spelling.downloadedTags)) {
+		const windows = this.plugin.spelling.kind() === 'windows';
+		const spelling = windows ? this.plugin.spelling.windowsTags : this.plugin.spelling.downloadedTags;
+		const sections = languageSections([...stated, ...found], parseLanguages(this.plugin.settings.languages), spelling, windows ? 'Languages in Windows' : 'Downloaded dictionaries');
+		for (const section of sections) {
 			menu.addSeparator();
 			menu.addItem((item) => item.setTitle(section.title).setIsLabel(true));
 			for (const code of section.codes) {

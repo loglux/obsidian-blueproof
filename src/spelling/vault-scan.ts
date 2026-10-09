@@ -11,7 +11,7 @@ export interface FoundWord {
 	script: WordScript;
 	/** Latin and Cyrillic letters mixed: a typo whatever the dictionary says. */
 	mixed: boolean;
-	/** Seen with a full stop after it at least once: asked about with the stop too («стр.»). */
+	/** Seen with a full stop after it at least once: asked about with the stop too (a Russian abbreviation such as the one for "page"). */
 	dotted: boolean;
 	count: number;
 	/** The notes it is in, the first ones only. */
@@ -83,7 +83,7 @@ export function distance(a: string, b: string): number {
 /**
  * What the dictionary's first fix says about a word: a likely typo (a letter off in a short word, two in a longer one),
  * only a capital letter (github → GitHub), or nothing (no fix, a different word, the word split in two). Tried on the
- * author's notes: with "two letters off" for every word, «дм → дом», "py → pie", "th → the" were called typos.
+ * author's notes: with "two letters off" for every word, "dm → dom" (in Russian), "py → pie", "th → the" were called typos.
  */
 export function fixKind(word: string, fix: string | undefined): 'typo' | 'capital' | null {
 	if (fix === undefined || fix.includes(' ') || fix.replace(/\.$/, '') === word) return null;

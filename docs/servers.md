@@ -15,7 +15,7 @@ After any of these: **Settings → BlueProof → Status → Check** says whether
 | No graphics card, but you accept the cloud | OpenAI | The paragraphs being checked leave your computer; you pay per use (cost not measured). |
 | No graphics card, and no cloud | — | Spelling still works; grammar needs a model. A small model on the processor was not tried. |
 
-Models, measured on the plugin's benchmark ([test results](test-results.md): 25 errors in plain text, 13 with formulas, and
+Models, measured on the plugin's benchmark (25 errors in plain text, 13 with formulas, and
 correct texts to count false findings; one run):
 
 | Model | Size of the file | Plain: found / right fix | With formulas: found / right fix, false | Good for |

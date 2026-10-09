@@ -3,6 +3,7 @@
 import type { EditorView } from '@codemirror/view';
 import { Menu, type TFile } from 'obsidian';
 import { CombinedGrammarChecker } from '../checkers/combined';
+import { addStyleItems } from '../commands/suggest-style';
 import { viewOf } from '../editor/extension';
 import { allMarks, findingsSummary } from '../editor/problems';
 import { LANGUAGE_KEYS, type LanguageKey, languageLabel, languageSections, languageValue, noteLanguageText } from '../prose/note-language';
@@ -140,6 +141,12 @@ export class StatusBar {
 						.onClick(() => void this.setNoteLanguages(file, key, [code])),
 				);
 			}
+		}
+		// the style commands (the paragraph at the cursor, the selected ones): the note's own menu is where they can be found
+		const editor = app.workspace.activeEditor?.editor;
+		if (editor && !this.plugin.isOff(file)) {
+			menu.addSeparator();
+			addStyleItems(menu, this.plugin, editor);
 		}
 		menu.showAtPosition(at);
 	}

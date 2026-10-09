@@ -22,8 +22,9 @@ None has a default hotkey, so nothing clashes with Latex Suite or other plugins;
 - *Check the paragraph at the cursor*: what each checker found, in a window.
 - *Show the finding at the cursor*, *Go to the next finding*, *Go to the previous finding*: the popup opens with its
   first button focused (Tab between buttons, Escape back to the text).
-- *Suggest a better wording for this paragraph*: the model proposes rewordings, you tick the ones you want; one undo
-  takes them all back.
+- *Suggest a better wording for this paragraph*, *… for the selected paragraphs* (every paragraph the selection
+  touches, asked about together): the model proposes rewordings, you tick the ones you want; one undo takes them all
+  back. Both are also in the editor's right-click menu and at the bottom of the language item's menu in the status bar.
 - *Turn checking off or on for this note*: sets `blueproof: off` in its properties.
 - *Choose the note's language*: the menu of the language item in the status bar.
 - *Find unknown words in my notes*: lists the unknown words of your vault, most frequent first,
@@ -54,8 +55,9 @@ tests about 95–99% of texts got the right language, against about 90%.
 
 **Status** first: what checks grammar and spelling, the last problem, and **Check**, which asks the servers and says
 what is missing. Then: whether to check while typing, your languages; **Spelling** (Windows' checker or Hunspell, the
-dictionaries to download, your dictionaries and words); **Grammar** (the checker); **Model server** (the server, its
-address, an API key for a cloud server, the model); **Style suggestions** (what to look for); **Skipped text**;
+dictionaries to download, the languages Windows has, your dictionaries and words); **Grammar** (the checker); **Style
+suggestions** (what to look for); **Model server** (used by both, and by style alone when grammar is off: the server, its
+address, an API key for a cloud server, the model); **Skipped text**;
 **Advanced** (the pause before checking, the dictionary folder, a debug log).
 
 ## Limits

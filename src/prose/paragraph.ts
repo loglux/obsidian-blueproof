@@ -152,3 +152,26 @@ export function paragraphsBetween(lines: readonly string[], firstLine: number, l
 	}
 	return found;
 }
+
+/** The lines of `paragraph` as they are in the note: its text with the blank lines it joined put back. */
+export function linesOf(lines: readonly string[], paragraph: Paragraph): string {
+	return lines.slice(paragraph.startLine, paragraph.endLine + 1).join('\n');
+}
+
+/**
+ * Several paragraphs as one, from the first's start to the last's end: each paragraph's text where its lines are, the
+ * lines between them (blank ones, headings) as they are. Offsets stay offsets in the note, as in one paragraph.
+ */
+export function paragraphsAsOne(lines: readonly string[], paragraphs: readonly Paragraph[]): Paragraph | null {
+	const first = paragraphs[0];
+	const last = paragraphs[paragraphs.length - 1];
+	if (!first || !last) return null;
+	let text = lines.slice(first.startLine, last.endLine + 1).join('\n');
+	const math: Span[] = [];
+	for (const p of paragraphs) {
+		const at = lines.slice(first.startLine, p.startLine).reduce((sum, line) => sum + line.length + 1, 0);
+		text = text.slice(0, at) + p.text + text.slice(at + p.text.length);
+		for (const m of p.math) math.push({ start: at + m.start, length: m.length });
+	}
+	return { text, startLine: first.startLine, endLine: last.endLine, math };
+}

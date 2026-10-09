@@ -10,7 +10,7 @@ import type { GrammarChecker } from './checkers/types';
 import { checkParagraph } from './commands/check-paragraph';
 import { checkSetup } from './commands/check-setup';
 import { findWords } from './commands/find-words';
-import { suggestStyle } from './commands/suggest-style';
+import { addStyleItems, STYLE_COMMAND, STYLE_SELECTION_COMMAND, suggestStyle } from './commands/suggest-style';
 import { underlineExtension, viewOf } from './editor/extension';
 import { nextFinding, showFindingAt } from './editor/popup';
 import { marksAt } from './editor/problems';
@@ -132,6 +132,12 @@ export default class BlueProofPlugin extends Plugin {
 			this.registerEvent(this.app.vault.on('rename', (file, oldPath) => this.dictionaries.renamed(file, oldPath)));
 		});
 		this.statusBar = new StatusBar(this);
+		// The style commands where they can be found: the editor's context menu, not only the command palette.
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu, editor, info) => {
+				if (!this.isOff(info.file)) addStyleItems(menu, this, editor);
+			}),
+		);
 		this.registerEvent(
 			this.app.metadataCache.on('changed', (file) => {
 				this.dictionaries.metadataChanged(file);
@@ -191,8 +197,17 @@ export default class BlueProofPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: 'suggest-style',
-			name: 'Suggest a better wording for this paragraph',
+			name: STYLE_COMMAND,
 			editorCallback: (editor) => void suggestStyle(this, editor),
+		});
+		this.addCommand({
+			id: 'suggest-style-selection',
+			name: STYLE_SELECTION_COMMAND,
+			editorCheckCallback: (checking, editor) => {
+				if (!editor.somethingSelected()) return false;
+				if (!checking) void suggestStyle(this, editor, true);
+				return true;
+			},
 		});
 	}
 

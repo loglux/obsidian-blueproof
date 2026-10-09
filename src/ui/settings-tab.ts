@@ -5,7 +5,7 @@ import { languageName } from '../checkers/llm';
 import { dictionaryLabel, HunspellModal } from './hunspell-modal';
 import { ChecklistModal } from './checklist-modal';
 import type { HunspellState } from '../spelling/service';
-import { windowsLanguagesText } from '../spelling/windows';
+import { WINDOWS_ADD_LANGUAGE, windowsLanguageNames } from '../spelling/windows';
 import { STYLE_FOCUSES } from '../style/focus';
 import {
 	type BlueProofSettings,
@@ -48,11 +48,25 @@ const BUILTIN_OUT = " Obsidian's own spellcheck is paused while BlueProof checks
 
 /** What each spelling choice does, as the description under the choice. */
 const SPELLING_HINTS: Record<string, string> = {
-	auto: `Windows' checker on Windows, Hunspell elsewhere.${BUILTIN_OUT}`,
-	windows: `The languages installed in Windows.${BUILTIN_OUT}`,
-	hunspell: `LibreOffice's dictionaries: downloaded below, or the system's on Linux.${BUILTIN_OUT}`,
+	windows: `Uses the languages installed in Windows; nothing to download.${BUILTIN_OUT}`,
+	hunspell: `LibreOffice's dictionaries: download them below${Platform.isLinux ? ", or use the system's" : ''}.${BUILTIN_OUT}`,
 	off: "Spelling is not checked by BlueProof (Obsidian's own spellcheck works as set in Editor, Spellcheck).",
 };
+
+/** What Automatic is on this computer: Windows' checker on Windows, Hunspell elsewhere. */
+const AUTO_SPELLING = Platform.isWin ? 'windows' : 'hunspell';
+
+/** The spelling choices, Automatic named by what it is here (the rule for every system was read as the choice). */
+const SPELLING_CHOICES: Record<string, string> = {
+	...SPELLING_ENGINES,
+	auto: `Automatic (here: ${Platform.isWin ? "Windows' spell checker" : 'Hunspell'})`,
+};
+
+/** The description under the spelling choice: what it does here. */
+const spellingHint = (choice: string): string =>
+	choice === 'auto'
+		? `${SPELLING_HINTS[AUTO_SPELLING]!.replace(BUILTIN_OUT, '')} (${Platform.isWin ? 'On macOS and Linux: Hunspell.' : "On Windows: Windows' spell checker."})${BUILTIN_OUT}`
+		: (SPELLING_HINTS[choice] ?? '');
 
 /** "1 entry", "12 entries". */
 const entries = (n: number): string => `${n} ${n === 1 ? 'entry' : 'entries'}`;
@@ -213,9 +227,18 @@ export class BlueProofSettingTab extends PluginSettingTab {
 		this.update();
 	}
 
+	/** The description of the Windows row: where to add a language, once the languages are known (they are labels). */
 	private windowsSummary(): string {
 		if (this.windowsState === null) return 'Asking Windows…';
-		return typeof this.windowsState === 'string' ? this.windowsState : windowsLanguagesText(this.windowsState, languageName);
+		if (typeof this.windowsState === 'string') return this.windowsState;
+		return this.windowsState.length === 0 ? `None. ${WINDOWS_ADD_LANGUAGE}` : WINDOWS_ADD_LANGUAGE;
+	}
+
+	/** The languages Windows has, as labels where a row's control goes: data, apart from the hint beside them. */
+	private windowsLabels(setting: Setting): void {
+		if (typeof this.windowsState === 'string' || this.windowsState === null) return;
+		const box = setting.controlEl.createDiv({ cls: 'blueproof-labels' });
+		for (const name of windowsLanguageNames(this.windowsState, languageName)) box.createSpan({ cls: 'blueproof-label', text: name });
 	}
 
 	/** Where each language's Hunspell dictionary is, looked up when the settings are shown. */
@@ -454,13 +477,19 @@ export class BlueProofSettingTab extends PluginSettingTab {
 				items: [
 					{
 						name: 'Checked by',
-						desc: SPELLING_HINTS[s().spelling],
-						control: { type: 'dropdown', key: 'spelling', options: SPELLING_ENGINES },
+						desc: spellingHint(s().spelling),
+						control: { type: 'dropdown', key: 'spelling', options: SPELLING_CHOICES },
 					},
 					{
 						name: 'Languages in Windows',
 						visible: () => this.plugin.spelling.kind() === 'windows',
-						...this.drawn(() => this.windowsSummary(), () => this.askWindows()),
+						...this.drawn(
+							() => this.windowsSummary(),
+							(setting) => {
+								this.askWindows();
+								this.windowsLabels(setting);
+							},
+						),
 					},
 					{
 						name: 'Hunspell dictionaries',
@@ -502,11 +531,28 @@ export class BlueProofSettingTab extends PluginSettingTab {
 			},
 			{
 				type: 'group',
+				heading: 'Style suggestions',
+				items: [
+					{
+						name: 'What to look for',
+						...this.drawn(
+							() => `${this.styleSummary()} For the paragraph at the cursor or the selected ones: right-click, or the language menu in the status bar, or the command palette.`,
+							(setting) => {
+								setting.addButton((b) => b.setButtonText('Choose…').onClick(() => this.openStyleChoice()));
+							},
+						),
+					},
+				],
+			},
+			{
+				type: 'group',
 				heading: 'Model server',
 				items: [
 					{
 						name: 'Server',
-						desc: 'For grammar and style suggestions. One on your computer or network keeps the text there; a cloud one gets the paragraphs being checked.',
+						desc: `${
+							s().grammar === 'model' ? 'Used by grammar and style suggestions.' : 'Used by style suggestions (grammar is off).'
+						} One on your computer or network keeps the text there; a cloud one gets the paragraphs being checked.`,
 						control: { type: 'dropdown', key: SERVER, options: SERVER_CHOICES },
 					},
 					{
@@ -557,21 +603,6 @@ export class BlueProofSettingTab extends PluginSettingTab {
 									.onClick(() => void this.loadModels()),
 							);
 						}),
-					},
-				],
-			},
-			{
-				type: 'group',
-				heading: 'Style suggestions',
-				items: [
-					{
-						name: 'What to look for',
-						...this.drawn(
-							() => `${this.styleSummary()} On command: "Suggest a better wording for this paragraph".`,
-							(setting) => {
-								setting.addButton((b) => b.setButtonText('Choose…').onClick(() => this.openStyleChoice()));
-							},
-						),
 					},
 				],
 			},

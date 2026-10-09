@@ -43,14 +43,20 @@ function regionName(tag: string): string | null {
  * checked with British data: seen 2026-10-08).
  */
 export function windowsLanguagesText(installed: string[], name: (language: string) => string | null): string {
-	const where = 'To add one: Windows Settings, Time & language, Language & region.';
-	if (installed.length === 0) return `None. ${where}`;
-	const languages = windowsMenuTags(installed).map((tag) => {
+	if (installed.length === 0) return `None. ${WINDOWS_ADD_LANGUAGE}`;
+	return `${windowsLanguageNames(installed, name).join(', ')}. ${WINDOWS_ADD_LANGUAGE}`;
+}
+
+/** Where a language is added in Windows. */
+export const WINDOWS_ADD_LANGUAGE = 'To add one: Windows Settings → Time & language → Language & region.';
+
+/** The names of what Windows has spelling for, each language once: "English (United Kingdom)". */
+export function windowsLanguageNames(installed: string[], name: (language: string) => string | null): string[] {
+	return windowsMenuTags(installed).map((tag) => {
 		const language = tag.split('-')[0]!.toLowerCase();
 		const region = regionName(tag);
 		return `${name(language) ?? language}${region ? ` (${region})` : ''}`;
 	});
-	return `${languages.join(', ')}. ${where}`;
 }
 
 /** One tag per language Windows has spelling for (en-GB for 15 English regions), for the language menu. */

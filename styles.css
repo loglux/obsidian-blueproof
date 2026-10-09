@@ -272,3 +272,20 @@
 .blueproof-language-found {
 	color: var(--text-muted);
 }
+
+/* Values shown as labels in a settings row (the languages Windows has), apart from the hint in its description. */
+.blueproof-labels {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--size-4-1);
+}
+
+.blueproof-label {
+	padding: var(--size-2-1) var(--size-4-2);
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+}

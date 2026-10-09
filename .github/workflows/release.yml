@@ -1,0 +1,43 @@
+name: Release Obsidian plugin
+
+# A tag equal to the version in manifest.json builds the plugin on GitHub's runners, attests the files and makes a draft
+# release with them; the notes are written and the draft published by hand.
+on:
+    push:
+        tags:
+            - '*'
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: Use Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: 'npm'
+
+            - name: Build plugin
+              run: |
+                  npm ci
+                  npm run build
+
+            - name: Attest build provenance
+              uses: actions/attest@v4
+              with:
+                  subject-path: |
+                      main.js
+                      styles.css
+
+            - name: Create release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  tag="${GITHUB_REF#refs/tags/}"
+                  gh release create "$tag" --title="$tag" --draft main.js manifest.json styles.css

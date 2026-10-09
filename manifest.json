@@ -1,0 +1,10 @@
+{
+	"id": "blueproof",
+	"name": "BlueProof",
+	"version": "0.3.0",
+	"minAppVersion": "1.13.0",
+	"description": "Check spelling and grammar in many languages as you type, with style suggestions on request; LaTeX formulas are left alone. Grammar by a language model, local or cloud.",
+	"author": "Vladislav Sorokin",
+	"authorUrl": "https://github.com/loglux",
+	"isDesktopOnly": true
+}

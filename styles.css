@@ -1,0 +1,272 @@
+/* Findings in the editor. Obsidian's own spell check underlines in red, so grammar is blue. */
+.blueproof-underline {
+	text-decoration-line: underline;
+	text-decoration-style: wavy;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+	/* One unbroken wave: by default it skips the tails of letters below the line (ф, р, у), which read as two findings. */
+	text-decoration-skip-ink: none;
+}
+
+.blueproof-grammar {
+	text-decoration-color: var(--color-blue);
+}
+
+.blueproof-spelling {
+	text-decoration-color: var(--color-red);
+}
+
+/* The popup over an underlined word. */
+.cm-tooltip:has(.blueproof-tip) {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+	max-width: 420px;
+}
+
+.blueproof-tip-item {
+	padding: var(--size-4-2) var(--size-4-3);
+}
+
+.blueproof-tip-item + .blueproof-tip-item {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.blueproof-tip-message {
+	color: var(--text-normal);
+	margin-top: var(--size-4-1);
+}
+
+.blueproof-tip-nofix {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-top: var(--size-4-1);
+}
+
+.blueproof-tip-fixes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-1);
+}
+
+.blueproof-tip-fix {
+	font-size: var(--font-ui-small);
+}
+
+/* Who says so, and the two ways to hide it: small, on one line under the explanation. */
+.blueproof-tip-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--size-4-3);
+	margin-top: var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+}
+
+.blueproof-tip-meta {
+	color: var(--text-faint);
+	margin-right: auto;
+}
+
+.blueproof-tip-link {
+	color: var(--text-muted);
+	text-decoration: none;
+}
+
+.blueproof-tip-link:hover {
+	color: var(--text-accent);
+	text-decoration: underline;
+}
+
+.blueproof-results .blueproof-paragraph {
+	margin: 0 0 var(--size-4-3) 0;
+	color: var(--text-muted);
+	white-space: pre-wrap;
+}
+
+.blueproof-checker {
+	margin-bottom: var(--size-4-3);
+}
+
+.blueproof-checker h4 {
+	margin: 0 0 var(--size-4-1) 0;
+}
+
+.blueproof-issue {
+	padding: var(--size-4-1) 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.blueproof-wrong {
+	color: var(--text-error);
+	text-decoration: line-through;
+}
+
+.blueproof-fix {
+	color: var(--text-success);
+	font-weight: var(--font-semibold);
+}
+
+.blueproof-message {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.blueproof-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.blueproof-ignore {
+	font-size: var(--font-ui-smaller);
+}
+
+.blueproof-ignored {
+	opacity: 0.5;
+}
+
+.blueproof-problem {
+	color: var(--text-error);
+}
+
+.blueproof-none {
+	color: var(--text-muted);
+}
+
+/* The style suggestions window: the ticks and the buttons under the list. */
+.blueproof-style-change label {
+	display: block;
+	cursor: pointer;
+}
+
+.blueproof-style-change input[type="checkbox"] {
+	margin-inline-end: var(--size-4-2);
+}
+
+.blueproof-style-actions {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: flex-end;
+	margin-top: var(--size-4-4);
+}
+
+/* The window with ticks opened from a line of the settings (style, LanguageTool's rules). */
+.blueproof-checklist-intro {
+	color: var(--text-muted);
+	margin-bottom: var(--size-4-3);
+}
+
+.blueproof-checklist-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+	gap: var(--size-4-2) var(--size-4-4);
+}
+
+.blueproof-checklist-item {
+	display: flex;
+	gap: var(--size-4-2);
+	align-items: flex-start;
+	cursor: pointer;
+}
+
+.blueproof-checklist-item input[type="checkbox"] {
+	margin-top: 0.2em;
+}
+
+.blueproof-checklist-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.blueproof-checklist-field {
+	margin-top: var(--size-4-4);
+}
+
+.blueproof-checklist-field textarea {
+	width: 100%;
+	margin-top: var(--size-4-1);
+}
+
+.blueproof-checklist-error {
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+}
+
+.blueproof-hidden {
+	display: none;
+}
+
+/* The window of words the dictionary does not know. */
+.blueproof-finder {
+	width: min(48rem, 90vw);
+}
+
+.blueproof-finder-list {
+	max-height: 55vh;
+	overflow-y: auto;
+	margin: var(--size-4-2) 0;
+}
+
+.blueproof-finder-row {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.blueproof-finder-label {
+	display: contents;
+}
+
+.blueproof-finder-word {
+	font-weight: var(--font-semibold);
+}
+
+.blueproof-finder-fix {
+	color: var(--text-muted);
+	margin-left: auto;
+}
+
+.blueproof-finder-typo {
+	color: var(--text-error);
+}
+
+/* The status bar item: the findings of the open note, or a warning. */
+.blueproof-status {
+	cursor: pointer;
+}
+
+/* An icon and a short text, as in Obsidian's own status bar items. */
+.blueproof-status-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.blueproof-status-icon {
+	display: inline-flex;
+}
+
+.blueproof-status-icon svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+
+.blueproof-status-problem {
+	color: var(--text-warning);
+}
+
+/* The status bar item with the note's language: muted while the language is only found from the text. */
+.blueproof-language {
+	cursor: pointer;
+}
+
+.blueproof-language-found {
+	color: var(--text-muted);
+}

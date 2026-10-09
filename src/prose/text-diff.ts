@@ -115,7 +115,42 @@ export function changes(original: string, corrected: string): TextChange[] {
 		}
 		result.push({ offset: start, length: end - start, replacement });
 	}
-	return result;
+	return joinNeighbours(original, result);
+}
+
+/**
+ * Changes with only spaces between them are one change. The comparison pairs words of a rewritten stretch as it can: "что
+ * бы подготовится" → "чтобы подготовиться" came out as "что" → "чтобы", "бы" → "подготовиться" and "подготовится " → "",
+ * each wrong alone, so taking one fix put a word twice into the text (seen 2026-10-09 with gpt-5.4-mini). Joined, the
+ * stretch is one finding with the model's own words as its fix. Spaces both ends share are left out again.
+ */
+function joinNeighbours(original: string, list: TextChange[]): TextChange[] {
+	const joined: TextChange[] = [];
+	for (const change of list) {
+		const last = joined[joined.length - 1];
+		const gap = last ? original.substring(last.offset + last.length, change.offset) : '';
+		if (last && change.offset >= last.offset + last.length && isBlank(gap)) {
+			last.replacement += gap + change.replacement;
+			last.length = change.offset + change.length - last.offset;
+		} else {
+			joined.push({ ...change });
+		}
+	}
+	for (const change of joined) {
+		let wrong = originalIn(original, change);
+		while (wrong.length > 0 && change.replacement.length > 0 && /\s/u.test(wrong[0]!) && wrong[0] === change.replacement[0]) {
+			change.offset++;
+			change.length--;
+			change.replacement = change.replacement.slice(1);
+			wrong = wrong.slice(1);
+		}
+		while (wrong.length > 0 && change.replacement.length > 0 && /\s/u.test(wrong[wrong.length - 1]!) && wrong[wrong.length - 1] === change.replacement[change.replacement.length - 1]) {
+			change.length--;
+			change.replacement = change.replacement.slice(0, -1);
+			wrong = wrong.slice(0, -1);
+		}
+	}
+	return joined;
 }
 
 /**

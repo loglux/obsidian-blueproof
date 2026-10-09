@@ -17,7 +17,7 @@
 }
 
 /* The popup over an underlined word. */
-.cm-tooltip:has(.blueproof-tip) {
+.cm-tooltip.blueproof-tooltip {
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
@@ -221,7 +221,9 @@
 }
 
 .blueproof-finder-label {
-	display: contents;
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2);
 }
 
 .blueproof-finder-word {

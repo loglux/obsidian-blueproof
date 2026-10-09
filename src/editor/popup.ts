@@ -110,6 +110,15 @@ function render(view: EditorView, marks: readonly Mark[], actions: PopupActions)
 	return root;
 }
 
+/**
+ * Marks the tooltip box CodeMirror put the popup in (its `.cm-tooltip`, around our element), for styles.css. Called once
+ * the popup is in the page. Not `.cm-tooltip:has(.blueproof-tip)`: Obsidian's directory review warns against `:has` (it
+ * can make the page restyle much more than it needs to).
+ */
+function markBox(dom: HTMLElement): void {
+	dom.closest('.cm-tooltip')?.addClass('blueproof-tooltip');
+}
+
 /** The popup, shown when the mouse rests on an underlined word. */
 export function popupTooltips(actions: PopupActions): Extension {
 	return hoverTooltip(
@@ -121,7 +130,10 @@ export function popupTooltips(actions: PopupActions): Extension {
 				end: Math.max(...marks.map((m) => m.to)),
 				// Below the word: above it, a word near the top of the pane has its popup hidden under Obsidian's tab header.
 				above: false,
-				create: (v) => ({ dom: render(v, marks, actions) }),
+				create: (v) => {
+					const dom = render(v, marks, actions);
+					return { dom, mount: () => markBox(dom) };
+				},
 			};
 		},
 		{ hoverTime: 350 },
@@ -177,7 +189,10 @@ export function keyboardPopup(actions: PopupActions): Extension {
 						});
 						return {
 							dom,
-							mount: () => dom.querySelector<HTMLElement>('button, a')?.focus(),
+							mount: () => {
+								markBox(dom);
+								dom.querySelector<HTMLElement>('button, a')?.focus();
+							},
 						};
 					},
 				};

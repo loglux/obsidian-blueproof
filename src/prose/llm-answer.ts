@@ -85,8 +85,11 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 	}));
 
 	// The model may drop or add a final newline or trailing spaces: compare what it was asked about.
-	const found = joinByNotes(text, changes(text.trimEnd(), corrected.trimEnd()), notes);
-	if (changedShare(text, found) > MAX_CHANGED_SHARE) return [];
+	const diff = changes(text.trimEnd(), corrected.trimEnd());
+	if (changedShare(text, diff) > MAX_CHANGED_SHARE) return [];
+	// Joined after the guard: the words a join takes in between were not rewritten, and counted they dropped a short
+	// sentence ("She dont know where is the station.": 0.40 before the join, 0.51 after; BlueEdit #149).
+	const found = joinByNotes(text, diff, notes);
 
 	const russian = language.toLowerCase().startsWith('ru');
 	const possibly = (replacement: string): string => (russian ? `Возможно, должно быть: ${replacement}` : `Possibly: ${replacement}`);
@@ -146,12 +149,23 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 	return result;
 }
 
+/** Words, in lower case: letters and digits of any script. */
+const wordsOf = (s: string): Set<string> => new Set((s.match(/[\p{L}\p{N}_]+/gu) ?? []).map((w) => w.toLowerCase()));
+
+/** Whether a word one change takes out is put in by another: the pieces of a move (BlueEdit's `MovesWord`). */
+function movesWord(text: string, pieces: readonly TextChange[]): boolean {
+	const words = pieces.map((c) => ({ out: wordsOf(originalIn(text, c)), in: wordsOf(c.replacement) }));
+	return words.some((a, i) => words.some((b, j) => i !== j && [...a.out].some((w) => b.in.has(w))));
+}
+
 /**
  * One finding for each error the model named: the changes that fall within the fragment of one of its notes are joined.
  * Comparing the texts cuts a fix as it can, and a word moved is two changes, each wrong alone: "She dont know where is the
  * station" → "where the station is" came out as "is" removed (with no explanation, since the model named no such error)
  * and "station" → "station is", which taken alone gave "where is the station is" (seen 2026-10-09 with gpt-5.4-mini).
- * A fragment that stands in the text more than once is taken where it covers the most changes.
+ * A fragment that stands in the text more than once is taken where it covers the most changes. Only the pieces of a
+ * moved word are joined: a note may name two errors, "results was better then" → "results were better than" (Phi-4-mini
+ * in BlueEdit #149), and those are two fixes, each right alone.
  */
 export function joinByNotes(text: string, list: TextChange[], notes: readonly { original: string }[]): TextChange[] {
 	let result = list.map((c) => ({ ...c }));
@@ -167,6 +181,7 @@ export function joinByNotes(text: string, list: TextChange[], notes: readonly { 
 		if (best === null) continue;
 		const inside = best.inside;
 		const group = inside.map((i) => result[i]!);
+		if (!movesWord(text, group)) continue;
 		const start = group[0]!.offset;
 		const last = group[group.length - 1]!;
 		const end = last.offset + last.length;

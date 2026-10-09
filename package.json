@@ -1,6 +1,6 @@
 {
 	"name": "blueproof",
-	"version": "0.4.4",
+	"version": "0.4.5",
 	"description": "Spelling, grammar and style checking for Obsidian in many languages, LaTeX-aware.",
 	"main": "main.js",
 	"type": "module",

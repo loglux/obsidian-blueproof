@@ -67,13 +67,28 @@ function notesFrom(errors: unknown): Note[] {
 	return (errors as Record<string, unknown>[]).map((e) => ({
 		original: str(e.original),
 		replacement: str(e.replacement),
-		explanation: str(e.explanation),
+		explanation: withoutLanguageLabel(str(e.explanation)),
 		alternatives: Array.isArray(e.alternatives) ? e.alternatives.filter((x): x is string => typeof x === 'string') : [],
 	}));
 }
 
+/**
+ * "English: the sentence needs an article…": asked to explain "in the language of the text … English for English text",
+ * gpt-5.4-mini sometimes labels the explanation with it (2026-10-09). The label says nothing to the user.
+ */
+export function withoutLanguageLabel(explanation: string): string {
+	const rest = explanation.replace(/^\s*(english|russian|английский|русский)\s*:\s*/i, '');
+	return rest === explanation ? explanation : rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/** Choices the benchmark compares on saved answers (scripts/bench/replay.ts); the plugin uses the defaults. */
+export interface AnswerOptions {
+	/** Show an error the model listed but did not put into its corrected text (BlueEdit #113). Default true. */
+	listedOnly?: boolean;
+}
+
 /** The model's JSON answer as findings in `text`. Throws when the answer is not the JSON that was asked for. */
-export function issuesFrom(text: string, answer: string, language: string, source = 'Language model'): GrammarIssue[] {
+export function issuesFrom(text: string, answer: string, language: string, source = 'Language model', options: AnswerOptions = {}): GrammarIssue[] {
 	const data = JSON.parse(answer) as { corrected?: unknown; errors?: unknown };
 	if (typeof data.corrected !== 'string') throw new Error('The answer has no corrected text.');
 	const corrected = restoreLatex(text, data.corrected);
@@ -137,7 +152,7 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 	// An error the model listed but did not put into its corrected text (Gemma 3 12B: "The survey were" → "was" in the list,
 	// "were" left in the text; BlueEdit #113): the error as the list has it, where its fragment stands in the text — only
 	// when it stands there once, so that it cannot be the wrong place.
-	for (const n of notes) {
+	for (const n of options.listedOnly === false ? [] : notes) {
 		if (n.original.length === 0 || n.original === n.replacement) continue;
 		const at = text.indexOf(n.original);
 		if (at < 0 || text.indexOf(n.original, at + 1) >= 0) continue;
@@ -146,6 +161,11 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 		for (const change of changes(text, fixed)) {
 			const wrong = originalIn(text, change);
 			if (notAboutWords(wrong, change.replacement)) continue;
+			// The fix may land outside the note's fragment, on a finding already made: "new car" → "a new car" is
+			// "bought" → "bought a" in the diff, which the check on the fragment above missed (shown twice, 2026-10-09).
+			const from = change.offset;
+			const to = change.offset + Math.max(1, change.length);
+			if (result.some((r) => r.offset < to && from < r.offset + Math.max(1, r.length))) continue;
 			result.push({
 				offset: change.offset,
 				length: change.length,

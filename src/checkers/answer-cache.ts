@@ -181,6 +181,10 @@ export class AnswerCache<T> implements Changing {
 			this.running = false;
 			this.runningSince = null;
 		}
+		// A text asked for while the loop was ending (after its last look at the queue, before `running` went down) found
+		// it running and did not start it: start again, or it stays queued until another text is asked for. The benchmark
+		// asks for its next case the moment an answer comes and quit with nothing done (2026-10-09, since #56).
+		if (!this.stopped && this.queued.size > 0) void this.drain();
 	}
 
 	onChange(listener: () => void): () => void {

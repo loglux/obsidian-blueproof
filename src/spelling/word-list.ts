@@ -16,7 +16,10 @@ export class WordList {
 			if (entry === '' || entry.startsWith('#')) continue;
 			if (entry.endsWith('*')) {
 				const stem = entry.slice(0, -1);
-				if (stem.length >= 3) this.stems.push(stem); // a shorter stem would let too much through
+				// A shorter stem would let too much through ("ou*": any typo starting with "ou" up to six letters); it counts as
+				// the word itself, not as nothing ("OU*" was dropped whole until 2026-10-10, silently).
+				if (stem.length >= 3) this.stems.push(stem);
+				else if (stem !== '') this.exact.add(stem);
 			} else {
 				this.exact.add(entry);
 			}
@@ -40,7 +43,10 @@ export class WordList {
 	has(word: string): boolean {
 		const w = word.toLowerCase();
 		if (this.exact.has(w)) return true;
-		return this.stems.some((stem) => w.startsWith(stem) && w.length - stem.length <= MAX_ENDING && /^\p{L}*$/u.test(w.slice(stem.length)));
+		if (this.stems.some((stem) => w.startsWith(stem) && w.length - stem.length <= MAX_ENDING && /^\p{L}*$/u.test(w.slice(stem.length)))) return true;
+		// An English possessive of a word in the list: "Wadlow's" for "Wadlow" or "Wadlow*" (the books' names, 2026-10-10).
+		const base = w.replace(/['’]s$/, '');
+		return base !== w && base.length > 0 && this.has(base);
 	}
 
 	/** A few entries, to show what a list is about. */

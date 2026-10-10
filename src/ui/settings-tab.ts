@@ -11,6 +11,7 @@ import {
 	type BlueProofSettings,
 	GRAMMAR_CHECKERS,
 	SPELLING_ENGINES,
+	isCloudServer,
 	MODEL_SERVERS,
 	modelServerOf,
 	switchModelServer,
@@ -421,7 +422,7 @@ export class BlueProofSettingTab extends PluginSettingTab {
 	private modelChoices(ids: readonly string[]): Record<string, string> {
 		const s = this.plugin.settings;
 		// A cloud server has no default model (OpenAI refuses a request without one); a local one serves the model it runs.
-		const choices: Record<string, string> = modelServerOf(s.modelUrl) === 'openai' ? { '': 'Choose a model' } : { '': 'The server default' };
+		const choices: Record<string, string> = isCloudServer(s.modelUrl) ? { '': 'Choose a model' } : { '': 'The server default' };
 		for (const id of ids) choices[id] = id;
 		if (s.modelName !== '' && !(s.modelName in choices)) choices[s.modelName] = `${s.modelName} (not on the list)`;
 		return choices;
@@ -590,7 +591,7 @@ export class BlueProofSettingTab extends PluginSettingTab {
 							} else {
 								setting.addText((t) =>
 									t
-										.setPlaceholder(modelServerOf(s().modelUrl) === 'openai' ? 'gpt-5.4-mini' : 'qwen3:14b')
+										.setPlaceholder({ openai: 'gpt-5.4-mini', anthropic: 'claude-haiku-4-5' }[modelServerOf(s().modelUrl)] ?? 'qwen3:14b')
 										.setValue(s().modelName)
 										.onChange((value) => void this.setControlValue('modelName', value.trim())),
 								);

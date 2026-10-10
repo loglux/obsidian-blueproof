@@ -1,6 +1,6 @@
 import type BlueProofPlugin from '../main';
 import { languageName } from '../checkers/llm';
-import { modelServerOf, parseLanguages } from '../settings';
+import { isCloudServer, parseLanguages } from '../settings';
 import { windowsLanguagesText } from '../spelling/windows';
 
 /**
@@ -15,7 +15,7 @@ export async function checkSetup(plugin: BlueProofPlugin): Promise<{ ok: boolean
 		try {
 			const models = await plugin.listModels();
 			const chosen = s.modelName.trim();
-			if (chosen === '' && modelServerOf(s.modelUrl) === 'openai') {
+			if (chosen === '' && isCloudServer(s.modelUrl)) {
 				ok = false;
 				lines.push('Grammar: the server answers, but no model is chosen.');
 			} else if (chosen !== '' && models.length > 0 && !models.includes(chosen)) {

@@ -2,6 +2,8 @@
 import { ALL_STYLE_FOCUS_KEYS, DEFAULT_STYLE_FOCUS_KEYS } from './style/focus';
 
 export interface BlueProofSettings {
+	/** What each model server and model refused, learnt from its answers (llm.ts, RequestProfiles), by address and model. */
+	requestProfiles: Record<string, { omit: string[]; completionTokens: boolean }>;
 	checkWhileTyping: boolean;
 	pauseMs: number;
 	/** `auto`, or a comma-separated list of language codes the checkers understand: `ru-RU, en-GB`, `de-DE`. */
@@ -58,7 +60,11 @@ export const MODEL_SERVERS: { id: string; name: string; url: string }[] = [
 	{ id: 'ollama', name: 'Ollama', url: 'http://127.0.0.1:11434/v1' },
 	{ id: 'lmstudio', name: 'LM Studio', url: 'http://127.0.0.1:1234/v1' },
 	{ id: 'openai', name: 'OpenAI (cloud: the text leaves your computer)', url: 'https://api.openai.com/v1' },
+	{ id: 'anthropic', name: 'Anthropic Claude (cloud: the text leaves your computer)', url: 'https://api.anthropic.com/v1' },
 ];
+
+/** A server in the cloud: it needs a key and a model chosen (it has no default one). */
+export const isCloudServer = (url: string): boolean => ['openai', 'anthropic'].includes(modelServerOf(url));
 
 /** An address as a key: `localhost` and `127.0.0.1`, a final slash and letter case do not make two servers. */
 export const serverKey = (url: string): string => url.trim().replace(/\/+$/, '').toLowerCase().replace('//localhost:', '//127.0.0.1:');
@@ -92,7 +98,7 @@ export function switchModelServer(s: BlueProofSettings, url: string): void {
 }
 
 /** Whether the API key field is shown for this address: a cloud server or one not listed; llama.cpp, Ollama, LM Studio need none. */
-export const takesApiKey = (url: string): boolean => ['openai', 'other'].includes(modelServerOf(url));
+export const takesApiKey = (url: string): boolean => isCloudServer(url) || modelServerOf(url) === 'other';
 
 /** The secret whose key goes with requests to the current server, or '' (none, or a server that takes no key). */
 export const apiKeySecretFor = (s: BlueProofSettings): string => (takesApiKey(s.modelUrl) ? s.modelApiKeySecret : '');
@@ -135,6 +141,7 @@ export const PAUSE_MAX_MS = 10000;
 // not localhost: BlueEdit found that on Windows "localhost" is tried over IPv6 first and costs 2 s on every request
 // (.NET; whether Obsidian's requestUrl does the same was not tried).
 export const DEFAULT_SETTINGS: BlueProofSettings = {
+	requestProfiles: {},
 	checkWhileTyping: true,
 	pauseMs: 1500,
 	languages: 'auto',
@@ -232,6 +239,8 @@ export function normalizeSettings(raw: unknown): BlueProofSettings {
 		if (typeof value === typeof DEFAULT_SETTINGS[key]) target[key] = value;
 	}
 
+	const profiles = result.requestProfiles as unknown;
+	if (typeof profiles !== 'object' || profiles === null || Array.isArray(profiles)) result.requestProfiles = {};
 	result.languages = result.languages.trim();
 	if (validatePause(result.pauseMs)) result.pauseMs = DEFAULT_SETTINGS.pauseMs;
 	if (validateLanguages(result.languages)) result.languages = DEFAULT_SETTINGS.languages;

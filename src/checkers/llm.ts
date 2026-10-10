@@ -167,8 +167,93 @@ export interface RequestProfile {
 
 export const newProfile = (): RequestProfile => ({ omit: new Set(), completionTokens: false });
 
+/** A profile as the plugin's data keeps it. */
+export interface StoredProfile {
+	omit: string[];
+	completionTokens: boolean;
+}
+
+/**
+ * What the models tried so far refuse, so that even their first request goes through at once (measured 2026-10-10:
+ * the benchmark and a probe of each). Anything else, a new model among it, is learnt from its own answers.
+ */
+const KNOWN_PROFILES: { server: RegExp; model?: string; omit: string[]; completionTokens?: boolean }[] = [
+	// OpenAI's server, for every model: "Unknown parameter: 'chat_template_kwargs'" (llama.cpp's switch); and every one
+	// tried (gpt-5.4-mini, 5.5, 5.6-luna/sol/terra, 6-astra/luna/sol, 6.1-sol): "'max_tokens' is not supported with this
+	// model. Use 'max_completion_tokens' instead."
+	{ server: /^https:\/\/api\.openai\.com\//i, omit: ['chat_template_kwargs'], completionTokens: true },
+	// Reasoning models that cannot turn thinking off: "'reasoning_effort' does not support 'none'", and "'temperature'
+	// does not support 0 with this model. Only the default (1) value is supported."
+	{ server: /^https:\/\/api\.openai\.com\//i, model: 'gpt-6-astra', omit: ['reasoning_effort', 'temperature'] },
+	{ server: /^https:\/\/api\.openai\.com\//i, model: 'gpt-6.1-sol', omit: ['reasoning_effort', 'temperature'] },
+	// "`temperature` is deprecated for this model"; Sonnet also: "tool_choice: type "tool" and "any" are not supported"
+	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-haiku-5-5', omit: ['temperature'] },
+	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-sonnet-5-5', omit: ['temperature', 'tool_choice'] },
+];
+
+/** The known part of a profile for a key "address|model". */
+export function knownProfile(key: string): RequestProfile {
+	const at = key.lastIndexOf('|');
+	const url = key.slice(0, at);
+	const model = key.slice(at + 1);
+	const profile = newProfile();
+	for (const k of KNOWN_PROFILES) {
+		if (!k.server.test(url) || (k.model !== undefined && k.model !== model)) continue;
+		for (const field of k.omit) profile.omit.add(field);
+		if (k.completionTokens) profile.completionTokens = true;
+	}
+	return profile;
+}
+
+/**
+ * The profiles of every server and model, shared by grammar and style, and kept in the plugin's data: what a model
+ * refuses is learnt once, not again after every start of Obsidian (2026-10-10). Keyed by address and model, so a new
+ * model (Sonnet 5.6 after 5.5) starts with nothing assumed and learns its own.
+ */
+export class RequestProfiles {
+	private profiles: Map<string, RequestProfile> | null = null;
+
+	constructor(
+		private readonly load: () => Record<string, StoredProfile> = () => ({}),
+		private readonly save: (all: Record<string, StoredProfile>) => void = () => {},
+	) {}
+
+	get(key: string): RequestProfile {
+		if (this.profiles === null) {
+			this.profiles = new Map();
+			for (const [k, p] of Object.entries(this.load())) {
+				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true });
+			}
+		}
+		let profile = this.profiles.get(key);
+		if (!profile) this.profiles.set(key, (profile = newProfile()));
+		// what is known of the model is added to what it was found to refuse
+		const known = knownProfile(key);
+		for (const field of known.omit) profile.omit.add(field);
+		if (known.completionTokens) profile.completionTokens = true;
+		return profile;
+	}
+
+	/** A profile has learnt something: keep them all. */
+	changed(): void {
+		const all: Record<string, StoredProfile> = {};
+		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens };
+		this.save(all);
+	}
+}
+
 /** The fields a server may refuse and that we can do without. Not the model, the messages or the schema. */
-const OPTIONAL = new Set(['chat_template_kwargs', 'reasoning_effort', 'temperature', 'response_format']);
+const OPTIONAL = new Set(['chat_template_kwargs', 'reasoning_effort', 'temperature', 'response_format', 'tool_choice']);
+
+/** The message of an error answer, or the answer as it is. */
+function errorMessage(answer: string): string {
+	try {
+		const message = (JSON.parse(answer) as { error?: { message?: unknown } }).error?.message;
+		return typeof message === 'string' ? message : answer;
+	} catch {
+		return answer;
+	}
+}
 
 /** Learn from a 400 answer which field the server refused. True when the profile changed, so the request is worth sending again. */
 export function adaptProfile(profile: RequestProfile, answer: string): boolean {
@@ -180,6 +265,12 @@ export function adaptProfile(profile: RequestProfile, answer: string): boolean {
 		// not JSON: look in the text
 	}
 	param ??= /(?:unknown|unsupported|unrecognized)[^'"]*['"]([a-z_]+)['"]/i.exec(answer)?.[1] ?? null;
+	// Anthropic names the field in backquotes: "`temperature` is deprecated for this model" (Claude Haiku 5.5 and Sonnet
+	// 5.5, 2026-10-10; Haiku 4.5 takes it).
+	param ??= /`([a-z_]+)` is (?:deprecated|not supported)/i.exec(answer)?.[1] ?? null;
+	// "tool_choice: type \"tool\" and \"any\" are not supported for this model" (Claude Sonnet 5.5, 2026-10-10): the tool
+	// stays offered, the model is no longer made to call it.
+	param ??= /^(tool_choice): type/.exec(errorMessage(answer))?.[1] ?? null;
 	if (param === null) return false;
 	if (param === 'max_tokens' && !profile.completionTokens) {
 		profile.completionTokens = true;
@@ -194,7 +285,66 @@ export function adaptProfile(profile: RequestProfile, answer: string): boolean {
 
 /** The address of the model list: the chat address's `…/v1` with `/models`. */
 export function modelsUrl(base: string): string {
+	if (isAnthropic(base)) return `${anthropicBase(base)}/models?limit=1000`;
 	return chatUrl(base).replace(/\/chat\/completions$/, '/models');
+}
+
+/**
+ * Anthropic's own API (Messages), not OpenAI's form: its own address, headers, request and answer. Recognised by the
+ * address; everything else is asked in OpenAI's form, as before.
+ */
+export function isAnthropic(base: string): boolean {
+	return /^https?:\/\/api\.anthropic\.com(\/|$)/i.test(base.trim());
+}
+
+const ANTHROPIC_VERSION = '2023-06-01';
+
+/** `https://api.anthropic.com/v1`, whatever path was given after the host. */
+function anthropicBase(base: string): string {
+	return base.trim().replace(/^(https?:\/\/api\.anthropic\.com).*$/i, '$1/v1');
+}
+
+/** The headers a server wants with its key: Anthropic's x-api-key and version, or a bearer token. */
+export function keyHeaders(base: string, key: string | null | undefined): Record<string, string> {
+	const k = key?.trim();
+	if (isAnthropic(base)) return { ...(k ? { 'x-api-key': k } : {}), 'anthropic-version': ANTHROPIC_VERSION };
+	return k ? { Authorization: `Bearer ${k}` } : {};
+}
+
+/**
+ * A request in Anthropic's form. It has no response_format, so the answer is asked for as the input of a tool the model
+ * must call, whose input schema is ours: the answer then keeps to the schema, as llama.cpp and OpenAI keep it.
+ */
+export function anthropicBody(request: ChatRequest, model: string, profile: RequestProfile = newProfile()): string {
+	const body: Record<string, unknown> = {
+		model: model.trim(),
+		// At least 1024: Claude Sonnet 5.5 explains in full, and a short Russian sentence (a limit of about 360) was cut off
+		// in 4 texts of 200 (2026-10-10). Only the tokens written are paid for.
+		max_tokens: Math.max(1024, request.maxTokens),
+		temperature: 0,
+		system: request.system,
+		messages: [{ role: 'user', content: request.user }],
+		tools: [{ name: request.schemaName, description: 'Give the answer.', input_schema: request.schema }],
+		tool_choice: { type: 'tool', name: request.schemaName },
+	};
+	for (const key of profile.omit) delete body[key];
+	return JSON.stringify(body);
+}
+
+/** The answer of an Anthropic request: the tool's input as JSON text, why it stopped, the model. Throws when it is not one. */
+export function anthropicCompletionOf(body: string): { content: string; finishReason: string | null; model: string | null } {
+	const data = JSON.parse(body) as { model?: unknown; stop_reason?: unknown; content?: { type?: unknown; input?: unknown; text?: unknown }[] };
+	const blocks = Array.isArray(data.content) ? data.content : [];
+	const tool = blocks.find((b) => b.type === 'tool_use' && typeof b.input === 'object' && b.input !== null);
+	const text = blocks.find((b) => b.type === 'text' && typeof b.text === 'string');
+	// With the tool not forced (a model that refuses tool_choice) the answer may come as text, maybe in a ```json block.
+	const content = tool ? JSON.stringify(tool.input) : typeof text?.text === 'string' ? text.text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '') : null;
+	if (content === null) throw new Error('The answer has no message.');
+	return {
+		content,
+		finishReason: data.stop_reason === 'max_tokens' ? 'length' : typeof data.stop_reason === 'string' ? data.stop_reason : null,
+		model: typeof data.model === 'string' && data.model.trim() !== '' ? data.model.trim() : null,
+	};
 }
 
 /** The model ids in a `/models` answer (OpenAI's form, which llama-server, Ollama and LM Studio follow), sorted. */
@@ -205,17 +355,19 @@ export function parseModels(body: string): string[] {
 }
 
 // Models a server lists that do not write text for a prompt (embeddings, OCR, speech, rerankers) or that would translate
-// rather than correct. By name only: the OpenAI form of the list says nothing else about a model.
-const NOT_FOR_TEXT = /embed|minilm|bge-|\be5-|rerank|ocr|whisper|tts|transcrib|speech|dall-e|image|moderation|translat/i;
+// rather than correct. By name only: the OpenAI form of the list says nothing else about a model. Also OpenAI's models
+// that the chat endpoint does not serve, each tried on 2026-10-10: audio ("requires that either input content or output
+// modality contain audio"), realtime and live, codex and the "-pro" ones ("not supported in the v1/chat/completions
+// endpoint"), and its search and deep-research models.
+const NOT_FOR_TEXT =
+	/embed|minilm|bge-|\be5-|rerank|ocr|whisper|tts|transcrib|speech|dall-e|image|moderation|translat|audio|realtime|(?:^|-)live(?:-|$)|codex|-pro(?:-\d{4}-\d{2}-\d{2})?$|search|deep-research/i;
 
 /** Whether a model from a server's list can proofread (by its name). */
 export const isTextModel = (id: string): boolean => !NOT_FOR_TEXT.test(id);
 
 /** The models the server offers. Throws an error with a message for the user. */
 export async function listModels(config: LlmConfig, get: GetJson): Promise<string[]> {
-	const headers: Record<string, string> = {};
-	const key = config.apiKey?.trim();
-	if (key) headers.Authorization = `Bearer ${key}`;
+	const headers = keyHeaders(config.url, config.apiKey);
 	let response: { status: number; text: string };
 	try {
 		response = await get(modelsUrl(config.url), headers, 15000);
@@ -325,7 +477,6 @@ export class ModelError extends Error {
  * answers (kept per server and model while the plugin runs), and an answer cut off at the length limit named as such.
  */
 export class ModelClient {
-	private readonly profiles = new Map<string, RequestProfile>();
 	/** The model that answered last, as its server names it. */
 	private answeredBy: string | null = null;
 
@@ -333,6 +484,7 @@ export class ModelClient {
 	constructor(
 		private readonly getConfig: () => LlmConfig,
 		private readonly post: PostJson,
+		private readonly profiles: RequestProfiles = new RequestProfiles(),
 	) {}
 
 	/**
@@ -346,20 +498,22 @@ export class ModelClient {
 	/** The text of the answer. Throws `ModelError` with a message for the user. */
 	async chat(request: ChatRequest): Promise<string> {
 		const config = this.getConfig();
-		const headers: Record<string, string> = {};
 		// A pasted key can bring a space, a line break or a byte order mark (Notepad saves one), and a header cannot carry them.
-		const key = config.apiKey?.trim();
-		if (key) headers.Authorization = `Bearer ${key}`;
-		const url = chatUrl(config.url);
+		const headers = keyHeaders(config.url, config.apiKey);
+		const anthropic = isAnthropic(config.url);
+		const url = anthropic ? `${anthropicBase(config.url)}/messages` : chatUrl(config.url);
 		const profileKey = `${url}|${config.model.trim()}`;
-		const profile = this.profiles.get(profileKey) ?? newProfile();
-		this.profiles.set(profileKey, profile);
+		const profile = this.profiles.get(profileKey);
 		let response: Awaited<ReturnType<PostJson>> | undefined;
 		try {
 			// A server that refuses one of our fields says which in its 400 answer: leave it out and ask again (a few times at most).
 			for (let attempt = 0; attempt < 4; attempt++) {
-				response = await this.post(url, chatBody(request, config.model, profile), { headers, timeoutMs: TIMEOUT_MS });
-				if (response.status === 400 && adaptProfile(profile, response.text)) continue;
+				const body = anthropic ? anthropicBody(request, config.model, profile) : chatBody(request, config.model, profile);
+				response = await this.post(url, body, { headers, timeoutMs: TIMEOUT_MS });
+				if (response.status === 400 && adaptProfile(profile, response.text)) {
+					this.profiles.changed();
+					continue;
+				}
 				break;
 			}
 		} catch (error) {
@@ -376,7 +530,7 @@ export class ModelClient {
 		}
 		let completion: ReturnType<typeof completionOf>;
 		try {
-			completion = completionOf(response.text);
+			completion = anthropic ? anthropicCompletionOf(response.text) : completionOf(response.text);
 		} catch (error) {
 			throw new ModelError(`${DEFAULT_SOURCE} gave an answer that could not be read: ${error instanceof Error ? error.message : String(error)}`, true);
 		}
@@ -408,8 +562,10 @@ export class LlmGrammarChecker implements GrammarChecker {
 		private readonly chunking: Chunking = DEFAULT_CHUNKING,
 		/** The benchmark compares other instructions; the plugin's are left as they are. */
 		private readonly adjustInstructions: AdjustInstructions = (system) => system,
+		/** What each server and model refuses, shared with the style command's client and kept in the plugin's data. */
+		profiles: RequestProfiles = new RequestProfiles(),
 	) {
-		this.client = new ModelClient(getConfig, post);
+		this.client = new ModelClient(getConfig, post, profiles);
 		this.cache = new AnswerCache<GrammarIssue[]>((text, language) => this.proofread(text, language));
 	}
 

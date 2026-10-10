@@ -33,6 +33,11 @@ const NOT_PROSE = [
 	/\\[A-Za-z]+\*?/g, // a LaTeX command outside a formula
 	/\b[A-Za-z0-9+/]{24,}={0,2}/g, // base64 (a long run with no spaces)
 	/\{[^{}\n]*\}/g, // the braces of a LaTeX command's arguments: {tabular}, {0.5\textwidth}
+	// Addresses written in the text, which Obsidian shows as links ("email general-enquiries@open.ac.uk" in the MST124
+	// Guide: "uk" was underlined, 2026-10-10), or a link's text: an e-mail address, a web address, a domain name.
+	/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu,
+	/\b(?:https?:\/\/|www\.|mailto:)[^\s<>()[\]]+/g,
+	/\b[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.(?:uk|com|org|net|edu|gov|io|ru|de|fr|eu|info|ac|co)\b/gu,
 ];
 const STRESS = /[̀́]/g;
 

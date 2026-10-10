@@ -1,7 +1,7 @@
 
 # BlueProof
 
-Spelling and grammar checking for Obsidian by a language model, on your own computer or OpenAI. It catches the errors
+Spelling and grammar checking for Obsidian by a language model, on your own computer or in the cloud (OpenAI, Anthropic). It catches the errors
 rule-based checkers miss, as you write. Desktop only.
 
 ![A note with underlined errors and the popup with fixes](docs/images/underlines.png)
@@ -42,17 +42,25 @@ has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the
 
 **Grammar** needs a language model. Choose where it runs:
 
-- **OpenAI**: works on any computer; paid per use; the paragraphs being checked go to OpenAI.
+- **OpenAI** or **Anthropic (Claude)**: works on any computer; paid per use; the paragraphs being checked go to that
+  company. How the cloud models compare: [docs/servers.md](docs/servers.md).
 - **A model on your own computer**: free and private; needs a graphics card with about 8–12 GB of memory.
 
 ### OpenAI
 
 1. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
-2. **Settings → BlueProof → Model server**: choose **OpenAI**, paste the key, pick a model (`gpt-5.4-mini` did best in
-   our tests).
+2. **Settings → BlueProof → Model server**: choose **OpenAI**, paste the key, pick a model (`gpt-5.4-mini`: as accurate
+   as the best and the fastest in our tests).
 3. Press **Check** at the top of the settings.
 
 ![Settings with OpenAI](docs/images/settings-openai.png)
+
+### Anthropic (Claude)
+
+1. Create an API key in the [Claude Console](https://console.anthropic.com/settings/keys).
+2. **Settings → BlueProof → Model server**: choose **Anthropic Claude**, paste the key, pick a model:
+   `claude-sonnet-5-5` found the most in our tests, `claude-haiku-5-5` made no false finding and is quicker.
+3. Press **Check** at the top of the settings.
 
 ### Ollama
 
@@ -140,8 +148,8 @@ frequent first, so you can add the right ones in one go. Examples to start from:
 
 ## Privacy
 
-- The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI if you chose
-  it.
+- The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI or Anthropic
+  if you chose one of them.
 - No account, no telemetry, no ads. An API key is kept in Obsidian's secret storage and sent
   only to the server it was given for.
 - Hunspell dictionaries are downloaded from LibreOffice's repository on GitHub (`api.github.com`,

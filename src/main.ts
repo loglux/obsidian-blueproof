@@ -5,7 +5,7 @@ import { EditorView } from '@codemirror/view';
 import { type Editor, editorInfoField, Notice, Plugin, type TFile } from 'obsidian';
 import { getJson, postJson } from './checkers/http';
 import { CombinedGrammarChecker } from './checkers/combined';
-import { type LlmConfig, LlmGrammarChecker, listModels, ModelClient } from './checkers/llm';
+import { type LlmConfig, LlmGrammarChecker, listModels, ModelClient, RequestProfiles } from './checkers/llm';
 import type { GrammarChecker } from './checkers/types';
 import { checkParagraph } from './commands/check-paragraph';
 import { checkSetup } from './commands/check-setup';
@@ -45,9 +45,24 @@ export default class BlueProofPlugin extends Plugin {
 		model: this.settings.modelName,
 		apiKey: apiKeySecretFor(this.settings) ? this.app.secretStorage.getSecret(apiKeySecretFor(this.settings)) : null,
 	});
-	private readonly model = new LlmGrammarChecker(this.modelConfig, postJson, () => parseIgnoredRules(this.settings.ignoredRules));
+	/** What each server and model refused, learnt once and kept in the plugin's data (shared by grammar and style). */
+	private readonly requestProfiles = new RequestProfiles(
+		() => this.settings.requestProfiles,
+		(all) => {
+			this.settings.requestProfiles = all;
+			void this.saveSettings();
+		},
+	);
+	private readonly model = new LlmGrammarChecker(
+		this.modelConfig,
+		postJson,
+		() => parseIgnoredRules(this.settings.ignoredRules),
+		undefined,
+		undefined,
+		this.requestProfiles,
+	);
 	/** Style suggestions ask the same server as the grammar model, on command only. */
-	readonly styleClient = new ModelClient(this.modelConfig, postJson);
+	readonly styleClient = new ModelClient(this.modelConfig, postJson, this.requestProfiles);
 
 	/** The dictionaries kept as notes in the folder of the settings. */
 	readonly dictionaries = new VaultDictionaries(

@@ -199,10 +199,22 @@ export function keyboardPopup(actions: PopupActions): Extension {
 			}
 			if (value === null) return null;
 			if (tr.docChanged) return null;
+			// Only the user moves the cursor off the finding (a click, an arrow key). Obsidian moves it itself: put at the
+			// start of a bold word ("**dotplots**"), it went before the "**" at once, and the popup closed as it opened
+			// (2026-10-10, every finding that starts a bold word).
+			if (!tr.selection || !tr.isUserEvent('select')) return value;
 			const head = tr.state.selection.main.head;
 			return head < value.pos || head > (value.end ?? value.pos) ? null : value;
 		},
 		provide: (f) => showTooltip.from(f),
 	});
+	openPopupField = field;
 	return field;
+}
+
+let openPopupField: StateField<Tooltip | null> | null = null;
+
+/** Where the popup opened from the keyboard or the status bar is, or null when none is open. */
+export function openFinding(state: EditorState): number | null {
+	return openPopupField ? (state.field(openPopupField, false)?.pos ?? null) : null;
 }

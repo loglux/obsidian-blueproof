@@ -12,7 +12,7 @@ import { checkSetup } from './commands/check-setup';
 import { findWords } from './commands/find-words';
 import { addStyleItems, STYLE_COMMAND, STYLE_SELECTION_COMMAND, suggestStyle } from './commands/suggest-style';
 import { underlineExtension, viewOf } from './editor/extension';
-import { nextFinding, showFindingAt } from './editor/popup';
+import { nextFinding, openFinding, showFindingAt } from './editor/popup';
 import { marksAt } from './editor/problems';
 import { NoteLanguages } from './languages';
 import { setLanguageModel } from './prose/detect';
@@ -269,13 +269,18 @@ export default class BlueProofPlugin extends Plugin {
 		const view = viewOf(editor);
 		if (!view) return false;
 		const head = view.state.selection.main.head;
-		const target = where === 'here' ? (marksAt(view.state, head).length > 0 ? head : head > 0 && marksAt(view.state, head - 1).length > 0 ? head - 1 : null) : nextFinding(view.state, head, where === 'previous');
+		// The next one after the finding whose popup is open, not after the cursor: Obsidian may have moved the cursor
+		// back before a bold word's "**", and the same finding came again.
+		const from = where === 'here' ? head : (openFinding(view.state) ?? head);
+		const target = where === 'here' ? (marksAt(view.state, head).length > 0 ? head : head > 0 && marksAt(view.state, head - 1).length > 0 ? head - 1 : null) : nextFinding(view.state, from, where === 'previous');
 		if (target === null) {
 			if (!checking) new Notice(where === 'here' ? 'No finding at the cursor.' : 'No findings in this note.');
 			return checking ? true : false;
 		}
 		if (checking) return true;
-		view.dispatch({ selection: { anchor: target }, scrollIntoView: true, effects: showFindingAt.of(target) });
+		// To the middle of the pane, not just into view: the last finding of a note, brought only to the bottom edge, sat
+		// under the status bar, where CodeMirror counts a tooltip out of sight and puts it off the screen (2026-10-10).
+		view.dispatch({ selection: { anchor: target }, effects: [EditorView.scrollIntoView(target, { y: 'center' }), showFindingAt.of(target)] });
 		return true;
 	}
 

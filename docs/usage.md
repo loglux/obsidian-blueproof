@@ -9,7 +9,9 @@ rule*.
 ## The status bar
 
 - The findings of the open note; click to go to the next one. An hourglass while answers are awaited (a local model
-  loading on the first request can take a minute or more), a warning icon and *Check failed* when a server does not answer (the paragraph
+  loading on the first request can take a minute or more), a timer and *Limit · until 14:32* when a cloud server's limit of
+  requests was reached and it said how long to wait (nothing is sent until then, and checking goes on by itself), a
+  warning icon and *Check failed* when a server does not answer (the paragraph
   is asked again a minute later, then after 2, 4… up to 30 minutes while it keeps failing).
 - The note's language: the one in its properties, or the one found in the text, marked "(auto)". Click to choose:
   *Automatic*, or a language from the note, your settings or your downloaded dictionaries. The choice is written into the
@@ -25,7 +27,12 @@ None has a default hotkey, so nothing clashes with Latex Suite or other plugins;
 - *Suggest a better wording for this paragraph*, *… for the selected paragraphs* (every paragraph the selection
   touches, asked about together): the model proposes rewordings, you tick the ones you want; one undo takes them all
   back. Both are also in the editor's right-click menu and at the bottom of the language item's menu in the status bar.
-- *Turn checking off or on for this note*: sets `blueproof: off` in its properties.
+- *Turn checking off or on for this note*: sets `blueproof: off` in its properties. The same is in the menus: right-click
+  the note in the file list or in the editor ("Don't check with BlueProof"), or the language item in the status bar; a
+  click on "Off" there checks the note again.
+- **A folder** is not checked with a right-click on it in the file list, "Don't check this folder with BlueProof": its
+  notes and the folders inside it, new ones too. Worth it for textbooks or clippings kept in the vault, which with a model
+  in the cloud would otherwise be sent to it. The list is in **Settings → Skipped text → Folders not checked**.
 - *Choose the note's language*: the menu of the language item in the status bar.
 - *Find unknown words in my notes*: lists the unknown words of your vault, most frequent first,
   marking likely typos.

@@ -11,8 +11,11 @@ export interface PostJsonOptions {
 	headers: Record<string, string>;
 	timeoutMs: number;
 }
-/** POSTs a JSON body and returns the status code and the body text. Rejects when the server cannot be reached. */
-export type PostJson = (url: string, body: string, options: PostJsonOptions) => Promise<{ status: number; text: string }>;
+/**
+ * POSTs a JSON body and returns the status code, the body text and the headers (for `Retry-After`; their names in any
+ * case). Rejects when the server cannot be reached.
+ */
+export type PostJson = (url: string, body: string, options: PostJsonOptions) => Promise<{ status: number; text: string; headers?: Record<string, string> }>;
 
 /** GETs a JSON answer and returns the status code and the body text. Rejects when the server cannot be reached. */
 export type GetJson = (url: string, headers: Record<string, string>, timeoutMs: number) => Promise<{ status: number; text: string }>;
@@ -55,7 +58,8 @@ export const DEFAULT_SOURCE = 'Language model';
 export function chatUrl(base: string): string {
 	const trimmed = base.trim().replace(/\/+$/, '');
 	if (trimmed.endsWith('/chat/completions')) return trimmed;
-	if (/\/v\d+$/.test(trimmed)) return `${trimmed}/chat/completions`;
+	// Google's OpenAI form is under /v1beta/openai.
+	if (/\/v\d+\w*(?:\/openai)?$/.test(trimmed)) return `${trimmed}/chat/completions`;
 	return `${trimmed}/v1/chat/completions`;
 }
 
@@ -163,21 +167,30 @@ export interface RequestProfile {
 	omit: Set<string>;
 	/** `max_completion_tokens` instead of `max_tokens` (newer OpenAI models want it). */
 	completionTokens: boolean;
+	/**
+	 * The model thinks whatever it is asked, and its thinking counts against the length limit: it gets room for it, and
+	 * reasoning_effort "low" in place of "none", which it may refuse.
+	 */
+	thinks: boolean;
 }
 
-export const newProfile = (): RequestProfile => ({ omit: new Set(), completionTokens: false });
+/** Room for the thinking of a model that cannot turn it off: 200 to 330 tokens measured on short texts (Gemini 3, 2026-10-11). */
+export const THINKING_ROOM = 2048;
+
+export const newProfile = (): RequestProfile => ({ omit: new Set(), completionTokens: false, thinks: false });
 
 /** A profile as the plugin's data keeps it. */
 export interface StoredProfile {
 	omit: string[];
 	completionTokens: boolean;
+	thinks?: boolean;
 }
 
 /**
  * What the models tried so far refuse, so that even their first request goes through at once (measured 2026-10-10:
  * the benchmark and a probe of each). Anything else, a new model among it, is learnt from its own answers.
  */
-const KNOWN_PROFILES: { server: RegExp; model?: string; omit: string[]; completionTokens?: boolean }[] = [
+const KNOWN_PROFILES: { server: RegExp; model?: string | RegExp; omit: string[]; completionTokens?: boolean; thinks?: boolean }[] = [
 	// OpenAI's server, for every model: "Unknown parameter: 'chat_template_kwargs'" (llama.cpp's switch); and every one
 	// tried (gpt-5.4-mini, 5.5, 5.6-luna/sol/terra, 6-astra/luna/sol, 6.1-sol): "'max_tokens' is not supported with this
 	// model. Use 'max_completion_tokens' instead."
@@ -189,6 +202,20 @@ const KNOWN_PROFILES: { server: RegExp; model?: string; omit: string[]; completi
 	// "`temperature` is deprecated for this model"; Sonnet also: "tool_choice: type "tool" and "any" are not supported"
 	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-haiku-5-5', omit: ['temperature'] },
 	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-sonnet-5-5', omit: ['temperature', 'tool_choice'] },
+	// Google's OpenAI form, for every model: 'Unknown name "chat_template_kwargs": Cannot find field.' Gemma 4 and
+	// gemini-3.5-flash-lite refuse reasoning_effort "none" (adaptProfile reads that too). Gemma 4 at temperature 0 loops
+	// ("в прошедшем времени в прошедшем времени…" up to the length limit, a short Russian text): its default, 3 of 3 right.
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, omit: ['chat_template_kwargs'] },
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-31b-it', omit: ['reasoning_effort', 'temperature'] },
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-26b-a4b-it', omit: ['reasoning_effort', 'temperature'] },
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemini-3.5-flash-lite', omit: ['reasoning_effort'] },
+	// Gemini 3: "we strongly recommend keeping the temperature parameter at its default value of 1.0", a lower one "may
+	// lead to unexpected behavior, such as looping" (ai.google.dev/gemini-api/docs/gemini-3, read 2026-10-11).
+	// "Reasoning cannot be turned off for Gemini 2.5 Pro or 3 models" (ai.google.dev/gemini-api/docs/openai): measured,
+	// gemini-3.8-flash thought with reasoning_effort "none" too, and 15 of 274 texts were cut off at the length limit
+	// (a short one: 276 of its 292 tokens thought); gemini-3.1-pro-preview refuses "none": "Budget 0 is invalid. This
+	// model only works in thinking mode."
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: /^gemini-3/, omit: ['temperature'], thinks: true },
 ];
 
 /** The known part of a profile for a key "address|model". */
@@ -198,9 +225,10 @@ export function knownProfile(key: string): RequestProfile {
 	const model = key.slice(at + 1);
 	const profile = newProfile();
 	for (const k of KNOWN_PROFILES) {
-		if (!k.server.test(url) || (k.model !== undefined && k.model !== model)) continue;
+		if (!k.server.test(url) || (typeof k.model === 'string' ? k.model !== model : k.model?.test(model) === false)) continue;
 		for (const field of k.omit) profile.omit.add(field);
 		if (k.completionTokens) profile.completionTokens = true;
+		if (k.thinks) profile.thinks = true;
 	}
 	return profile;
 }
@@ -222,7 +250,7 @@ export class RequestProfiles {
 		if (this.profiles === null) {
 			this.profiles = new Map();
 			for (const [k, p] of Object.entries(this.load())) {
-				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true });
+				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true, thinks: p.thinks === true });
 			}
 		}
 		let profile = this.profiles.get(key);
@@ -231,13 +259,14 @@ export class RequestProfiles {
 		const known = knownProfile(key);
 		for (const field of known.omit) profile.omit.add(field);
 		if (known.completionTokens) profile.completionTokens = true;
+		if (known.thinks) profile.thinks = true;
 		return profile;
 	}
 
 	/** A profile has learnt something: keep them all. */
 	changed(): void {
 		const all: Record<string, StoredProfile> = {};
-		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens };
+		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens || p.thinks) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens, ...(p.thinks ? { thinks: true } : {}) };
 		this.save(all);
 	}
 }
@@ -248,7 +277,9 @@ const OPTIONAL = new Set(['chat_template_kwargs', 'reasoning_effort', 'temperatu
 /** The message of an error answer, or the answer as it is. */
 function errorMessage(answer: string): string {
 	try {
-		const message = (JSON.parse(answer) as { error?: { message?: unknown } }).error?.message;
+		// Google wraps its error in an array: [{"error": {…}}]
+		const parsed = JSON.parse(answer) as unknown;
+		const message = ((Array.isArray(parsed) ? parsed[0] : parsed) as { error?: { message?: unknown } } | undefined)?.error?.message;
 		return typeof message === 'string' ? message : answer;
 	} catch {
 		return answer;
@@ -264,13 +295,22 @@ export function adaptProfile(profile: RequestProfile, answer: string): boolean {
 	} catch {
 		// not JSON: look in the text
 	}
-	param ??= /(?:unknown|unsupported|unrecognized)[^'"]*['"]([a-z_]+)['"]/i.exec(answer)?.[1] ?? null;
+	// In the message, not the raw answer: there Google's 'Unknown name "chat_template_kwargs"' has its quotes escaped.
+	param ??= /(?:unknown|unsupported|unrecognized)[^'"]*['"]([a-z_]+)['"]/i.exec(errorMessage(answer))?.[1] ?? null;
 	// Anthropic names the field in backquotes: "`temperature` is deprecated for this model" (Claude Haiku 5.5 and Sonnet
 	// 5.5, 2026-10-10; Haiku 4.5 takes it).
 	param ??= /`([a-z_]+)` is (?:deprecated|not supported)/i.exec(answer)?.[1] ?? null;
 	// "tool_choice: type \"tool\" and \"any\" are not supported for this model" (Claude Sonnet 5.5, 2026-10-10): the tool
 	// stays offered, the model is no longer made to call it.
 	param ??= /^(tool_choice): type/.exec(errorMessage(answer))?.[1] ?? null;
+	// Google names no field (2026-10-10): Gemma, "Thinking budget is not supported for this model."; gemini-3.5-flash-lite,
+	// "Request contains an invalid argument." for reasoning_effort "none" alone. The thinking switch is tried first.
+	// gemini-3.1-pro-preview, for "none" (2026-10-11): "Budget 0 is invalid. This model only works in thinking mode."
+	if (param === null && !profile.thinks && /only works in thinking mode/i.test(errorMessage(answer))) {
+		profile.thinks = true;
+		return true;
+	}
+	if (param === null && /^(?:thinking budget is not supported|request contains an invalid argument)/i.test(errorMessage(answer))) param = 'reasoning_effort';
 	if (param === null) return false;
 	if (param === 'max_tokens' && !profile.completionTokens) {
 		profile.completionTokens = true;
@@ -351,16 +391,20 @@ export function anthropicCompletionOf(body: string): { content: string; finishRe
 export function parseModels(body: string): string[] {
 	const data = JSON.parse(body) as { data?: { id?: unknown }[] };
 	if (!Array.isArray(data.data)) throw new Error('The answer has no list of models.');
-	return [...new Set(data.data.flatMap((m) => (typeof m.id === 'string' && m.id.trim() !== '' ? [m.id.trim()] : [])))].sort((a, b) => a.localeCompare(b));
+	// Google lists "models/gemini-2.5-flash"; its chat takes the name with or without "models/".
+	return [...new Set(data.data.flatMap((m) => (typeof m.id === 'string' && m.id.trim() !== '' ? [m.id.trim().replace(/^models\//, '')] : [])))].sort((a, b) => a.localeCompare(b));
 }
 
 // Models a server lists that do not write text for a prompt (embeddings, OCR, speech, rerankers) or that would translate
 // rather than correct. By name only: the OpenAI form of the list says nothing else about a model. Also OpenAI's models
 // that the chat endpoint does not serve, each tried on 2026-10-10: audio ("requires that either input content or output
 // modality contain audio"), realtime and live, codex and the "-pro" ones ("not supported in the v1/chat/completions
-// endpoint"), and its search and deep-research models.
+// endpoint"), and its search and deep-research models; "-pro" is OpenAI's only (Google's gemini-2.5-pro is a chat model).
+// Google's, from its list of 2026-10-10: music (lyria), video (veo), pictures (nano-banana), robots, computer use, the
+// antigravity agent, and aqa (answers from passages given to it); and, tried 2026-10-11, the omni ones ("This model only
+// supports Interactions API") and Pro's customtools (for agents' own tools).
 const NOT_FOR_TEXT =
-	/embed|minilm|bge-|\be5-|rerank|ocr|whisper|tts|transcrib|speech|dall-e|image|moderation|translat|audio|realtime|(?:^|-)live(?:-|$)|codex|-pro(?:-\d{4}-\d{2}-\d{2})?$|search|deep-research/i;
+	/embed|minilm|bge-|\be5-|rerank|ocr|whisper|tts|transcrib|speech|dall-e|image|moderation|translat|audio|realtime|(?:^|-)live(?:-|$)|codex|^(?:gpt|o\d)[\w.-]*-pro(?:-\d{4}-\d{2}-\d{2})?$|search|deep-research|lyria|veo-|nano-banana|robotics|computer-use|antigravity|^aqa$|^gemini-omni|customtools/i;
 
 /** Whether a model from a server's list can proofread (by its name). */
 export const isTextModel = (id: string): boolean => !NOT_FOR_TEXT.test(id);
@@ -400,14 +444,14 @@ export function chatBody(request: ChatRequest, model: string, profile: RequestPr
 			{ role: 'user', content: request.user },
 		],
 		temperature: 0,
-		[profile.completionTokens ? 'max_completion_tokens' : 'max_tokens']: request.maxTokens,
+		[profile.completionTokens ? 'max_completion_tokens' : 'max_tokens']: request.maxTokens + (profile.thinks ? THINKING_ROOM : 0),
 		// llama.cpp holds generation to the schema.
 		response_format: { type: 'json_schema', json_schema: { name: request.schemaName, schema: request.schema } },
 		// A "thinking" model would think first, which takes long and is not needed to proofread. Each server has its own switch:
 		// llama.cpp takes chat_template_kwargs (OpenAI refuses it, and the profile then leaves it out); Ollama and OpenAI take
 		// reasoning_effort (a model that cannot turn thinking off is refused it, and the profile leaves it out too).
 		chat_template_kwargs: { enable_thinking: false },
-		reasoning_effort: 'none',
+		reasoning_effort: profile.thinks ? 'low' : 'none',
 	};
 	for (const key of profile.omit) delete body[key];
 	return JSON.stringify(body);
@@ -461,15 +505,48 @@ export function modelLabel(model: string): string {
 
 /**
  * The model could not be asked, or its answer is not one: the message is for the user, as it is. `final` when asking
- * again would give the same (see AnswerCache).
+ * again would give the same (see AnswerCache); `waitMs` when the server said how long to wait before asking again.
  */
 export class ModelError extends Error {
 	constructor(
 		message: string,
 		readonly final = false,
+		readonly waitMs?: number,
 	) {
 		super(message);
 	}
+}
+
+/** "53s", "1.2s", "20ms", "6m0s", "54m9.311748502s", "1h2m": milliseconds, or null. */
+export function durationMs(text: string): number | null {
+	const parts = [...text.matchAll(/(\d+(?:\.\d+)?)(ms|h|m|s)/g)];
+	if (parts.length === 0 || parts.map((p) => p[0]).join('') !== text) return null;
+	const unit: Record<string, number> = { ms: 1, s: 1000, m: 60000, h: 3600000 };
+	return Math.round(parts.reduce((sum, p) => sum + Number(p[1]) * unit[p[2]!]!, 0));
+}
+
+/**
+ * How long a server that refused for its limit (429) said to wait, in ms, or null when it did not say. Anthropic and
+ * OpenAI: the `Retry-After` header, in seconds (or an HTTP date); OpenAI's message also says "try again in 1.2s".
+ * Google, in its message and its RetryInfo: "Please retry in 54m9.311748502s", "retryDelay": "53s" (2026-10-10). The
+ * sources: docs/provider-rules.md.
+ */
+export function retryAfterMs(response: { text: string; headers?: Record<string, string> }, now = Date.now()): number | null {
+	const header = Object.entries(response.headers ?? {}).find(([name]) => name.toLowerCase() === 'retry-after')?.[1]?.trim();
+	if (header) {
+		if (/^\d+(?:\.\d+)?$/.test(header)) return Math.round(Number(header) * 1000);
+		const at = Date.parse(header);
+		if (!Number.isNaN(at)) return Math.max(0, at - now);
+	}
+	const said = /(?:retry|try again) in ((?:\d+(?:\.\d+)?(?:ms|h|m|s))+)/i.exec(errorMessage(response.text))?.[1] ?? /"retryDelay":\s*"([\d.]+s)"/.exec(response.text)?.[1];
+	return said === undefined ? null : durationMs(said);
+}
+
+/** "14:32", with the date when it is not today. */
+export function clockTime(at: number): string {
+	const date = new Date(at);
+	const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	return date.toDateString() === new Date().toDateString() ? time : `${date.toLocaleDateString()} ${time}`;
 }
 
 /**
@@ -526,7 +603,14 @@ export class ModelClient {
 				throw new ModelError(`${DEFAULT_SOURCE}: this server needs a model. Choose one in the settings: Model server, Model.`);
 			}
 			if (response.status === 401 || response.status === 403) throw new ModelError(`${DEFAULT_SOURCE}: the server refused the request. Check the API key.`);
-			throw new ModelError(`${DEFAULT_SOURCE} answered with status ${response.status}: ${response.text.slice(0, 200)}`);
+			// A limit of requests: Google's free tier allows a few a minute and some a day, and none for its Pro models (2026-10-10).
+			// Where the server says how long to wait, the checking waits that long (AnswerCache) and the user is told until when.
+			if (response.status === 429) {
+				const wait = retryAfterMs(response) ?? undefined;
+				const until = wait === undefined ? '' : ` Checking goes on at ${clockTime(Date.now() + wait)}.`;
+				throw new ModelError(`${DEFAULT_SOURCE}: the server's limit of requests for this key or model was reached.${until} ${errorMessage(response.text).slice(0, 300)}`, false, wait);
+			}
+			throw new ModelError(`${DEFAULT_SOURCE} answered with status ${response.status}: ${errorMessage(response.text).slice(0, 200)}`);
 		}
 		let completion: ReturnType<typeof completionOf>;
 		try {

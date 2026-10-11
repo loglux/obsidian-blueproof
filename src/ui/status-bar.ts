@@ -3,7 +3,9 @@
 import type { EditorView } from '@codemirror/view';
 import { Menu, type TFile } from 'obsidian';
 import { CombinedGrammarChecker } from '../checkers/combined';
+import { clockTime } from '../checkers/llm';
 import { addStyleItems } from '../commands/suggest-style';
+import { addNoteCheckingItem } from './checking-menu';
 import { viewOf } from '../editor/extension';
 import { allMarks, findingsSummary } from '../editor/problems';
 import { LANGUAGE_KEYS, type LanguageKey, languageLabel, languageSections, languageValue, noteLanguageText } from '../prose/note-language';
@@ -18,7 +20,15 @@ export class StatusBar {
 	constructor(private readonly plugin: BlueProofPlugin) {
 		this.findings = new StatusItem(plugin.addStatusBarItem());
 		this.findings.el.addClass('blueproof-status');
-		plugin.registerDomEvent(this.findings.el, 'click', () => plugin.nextFinding());
+		// "Off" (a note not checked) opens a menu to check it again; otherwise a click goes to the next finding.
+		plugin.registerDomEvent(this.findings.el, 'click', (event) => {
+			const file = plugin.app.workspace.getActiveFile();
+			if (file && file.extension === 'md' && plugin.isOff(file)) {
+				const menu = new Menu();
+				addNoteCheckingItem(menu, plugin, file);
+				menu.showAtMouseEvent(event);
+			} else plugin.nextFinding();
+		});
 		this.language = new StatusItem(plugin.addStatusBarItem());
 		this.language.el.addClass('blueproof-language');
 		plugin.registerDomEvent(this.language.el, 'click', (event) => this.showLanguageMenu({ x: event.clientX, y: event.clientY }));
@@ -38,9 +48,21 @@ export class StatusBar {
 		let icon = 'spell-check';
 		let text: string | null = null;
 		let tip = '';
+		const pausedUntil = waiting?.waiting.pausedUntil ?? null;
 		if (file && this.plugin.isOff(file)) {
 			text = 'Off';
-			tip = 'BlueProof: checking is off for this note ("blueproof: off" in its properties).';
+			const folder = this.plugin.offFolderOf(file);
+			tip =
+				folder !== null
+					? `BlueProof: the folder "${folder}" is not checked (Settings, Skipped text). Click to check it again.`
+					: 'BlueProof: checking is off for this note ("blueproof: off" in its properties). Click to check it again.';
+		} else if (pausedUntil !== null) {
+			// The server's limit of requests, and it said until when: not a failure, checking goes on by itself then.
+			icon = 'timer';
+			const at = clockTime(pausedUntil);
+			text = `Limit · until ${at}`;
+			const n = waiting?.waiting.count ?? 0;
+			tip = `BlueProof: ${problem ?? "the server's limit of requests was reached."} ${n === 1 ? 'One paragraph waits' : `${n} paragraphs wait`} until ${at}, then checking goes on by itself.`;
 		} else if (problem) {
 			// A problem first: the last request failed, so the paragraphs still queued are not "being checked" (seen on
 			// 2026-10-06 with LanguageTool not started: "38 paragraphs waiting", while every request was refused).
@@ -148,6 +170,8 @@ export class StatusBar {
 			menu.addSeparator();
 			addStyleItems(menu, this.plugin, editor);
 		}
+		menu.addSeparator();
+		addNoteCheckingItem(menu, this.plugin, file);
 		menu.showAtPosition(at);
 	}
 

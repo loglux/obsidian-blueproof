@@ -7,6 +7,12 @@ import type { Changing, Waiting } from './types';
  */
 export const isFinal = (error: unknown): boolean => error instanceof Error && (error as { final?: unknown }).final === true;
 
+/** How long the server said to wait before anything is asked again (its limit of requests), or null. */
+export const waitOf = (error: unknown): number | null => {
+	const wait = error instanceof Error ? (error as { waitMs?: unknown }).waitMs : undefined;
+	return typeof wait === 'number' && wait >= 0 ? wait : null;
+};
+
 export interface AnswerCacheOptions {
 	/** After a failure, how long before the text is asked again; it doubles with each failure in a row, up to 30 min. */
 	retryAfterMs?: number;
@@ -54,6 +60,10 @@ export class AnswerCache<T> implements Changing {
 	private wake: (() => void) | null = null;
 	version = 0;
 	private readonly retryAfterMs: number;
+	/** Nothing is sent before this time: the server's limit of requests was reached and it said how long to wait. */
+	private pausedUntil = 0;
+	/** Ends that wait early (`retry`, `clear`, `dispose`). */
+	private unpause: (() => void) | null = null;
 	private readonly now: () => number;
 	private readonly sleep: (ms: number) => Promise<void>;
 	private readonly maxAnswers: number;
@@ -110,7 +120,7 @@ export class AnswerCache<T> implements Changing {
 
 	/** The texts queued or being asked, and since when the current request waits. */
 	get waiting(): Waiting {
-		return { count: this.queued.size, since: this.runningSince };
+		return { count: this.queued.size, since: this.runningSince, ...(this.pausedUntil > this.now() ? { pausedUntil: this.pausedUntil } : {}) };
 	}
 
 	/** The reason the last request for this text failed, or null. */
@@ -122,6 +132,7 @@ export class AnswerCache<T> implements Changing {
 	retry(): void {
 		this.failed.clear();
 		this.tries.clear();
+		this.endPause();
 		this.bump();
 	}
 
@@ -132,11 +143,31 @@ export class AnswerCache<T> implements Changing {
 		this.tries.clear();
 		this.queued.clear();
 		this.generation++;
+		this.endPause();
 		this.bump();
+	}
+
+	private endPause(): void {
+		this.pausedUntil = 0;
+		this.unpause?.();
+		this.unpause = null;
+	}
+
+	/** Waits out a pause the server asked for, or until it is ended. */
+	private async waitOutPause(): Promise<void> {
+		const ms = this.pausedUntil - this.now();
+		if (ms <= 0) return;
+		await new Promise<void>((resolve) => {
+			this.unpause = resolve;
+			void this.sleep(ms).then(resolve);
+		});
+		this.unpause = null;
 	}
 
 	/** The next text to send: the first queued that was asked for since the last answer; the others are dropped. */
 	private async next(): Promise<[string, { text: string; language: string }] | undefined> {
+		// After a pause the server asked for, what is wanted then is sent, not what was wanted before it.
+		await this.waitOutPause();
 		const stale = (): boolean => [...this.queued.values()].some((job) => job.askedAt < this.answeredAt);
 		// The editors ask again a moment after an answer: wait for that only when something was not asked yet (a command
 		// waiting for its paragraph, and the benchmark, ask at once and do not wait).
@@ -158,6 +189,7 @@ export class AnswerCache<T> implements Changing {
 			for (let entry = await this.next(); entry !== undefined && !this.stopped; entry = await this.next()) {
 				const [key, job] = entry;
 				const generation = this.generation;
+				let keep = false;
 				this.runningSince = this.now(); // read by the status bar, which looks every 2 s: no change event for it
 				try {
 					const answer = await this.compute(job.text, job.language);
@@ -167,11 +199,18 @@ export class AnswerCache<T> implements Changing {
 					this.tries.delete(key);
 				} catch (error) {
 					if (generation !== this.generation || this.stopped) continue;
-					const reason = error instanceof Error ? error.message : String(error);
-					this.failed.set(key, { reason, at: this.now(), final: isFinal(error) });
-					this.tries.set(key, (this.tries.get(key) ?? 0) + 1);
+					const wait = waitOf(error);
+					if (wait !== null) {
+						// The server's limit, and it said how long: nothing is sent until then, this text stays queued.
+						this.pausedUntil = this.now() + wait;
+						keep = true;
+					} else {
+						const reason = error instanceof Error ? error.message : String(error);
+						this.failed.set(key, { reason, at: this.now(), final: isFinal(error) });
+						this.tries.set(key, (this.tries.get(key) ?? 0) + 1);
+					}
 				} finally {
-					this.queued.delete(key);
+					if (!keep) this.queued.delete(key);
 					this.runningSince = null;
 				}
 				this.answeredAt = this.now();
@@ -199,6 +238,7 @@ export class AnswerCache<T> implements Changing {
 
 	dispose(): void {
 		this.stopped = true;
+		this.endPause();
 		this.queued.clear();
 		this.listeners.clear();
 	}

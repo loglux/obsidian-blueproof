@@ -2,7 +2,7 @@
 // part does is in its own module: src/languages.ts, src/spelling/service.ts, src/ui/status-bar.ts, src/commands/.
 import { Prec } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { type Editor, editorInfoField, Notice, Plugin, type TFile } from 'obsidian';
+import { type Editor, editorInfoField, Notice, Plugin, type TAbstractFile, TFile, TFolder } from 'obsidian';
 import { getJson, postJson } from './checkers/http';
 import { CombinedGrammarChecker } from './checkers/combined';
 import { type LlmConfig, LlmGrammarChecker, listModels, ModelClient, RequestProfiles } from './checkers/llm';
@@ -23,6 +23,7 @@ import { skippedIn } from './prose/markup';
 import type { Span } from './prose/math';
 import type { Paragraph } from './prose/paragraph';
 import {
+	offFolderOf,
 	apiKeySecretFor,
 	type BlueProofSettings,
 	DEFAULT_SETTINGS,
@@ -33,6 +34,7 @@ import {
 import { SpellingService } from './spelling/service';
 import { VaultDictionaries } from './spelling/vault-dictionaries';
 import { showAddWordMenu } from './ui/add-word-menu';
+import { addFolderCheckingItem, addNoteCheckingItem } from './ui/checking-menu';
 import { BlueProofSettingTab } from './ui/settings-tab';
 import { StatusBar } from './ui/status-bar';
 
@@ -151,6 +153,14 @@ export default class BlueProofPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('editor-menu', (menu, editor, info) => {
 				if (!this.isOff(info.file)) addStyleItems(menu, this, editor);
+				if (info.file?.extension === 'md') addNoteCheckingItem(menu, this, info.file);
+			}),
+		);
+		// Checking off and on for a note, in the file list's menu of the note too.
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu, file) => {
+				if (file instanceof TFile && file.extension === 'md') addNoteCheckingItem(menu, this, file);
+				else if (file instanceof TFolder) addFolderCheckingItem(menu, this, file);
 			}),
 		);
 		this.registerEvent(
@@ -265,12 +275,28 @@ export default class BlueProofPlugin extends Plugin {
 
 	isOff(file: TFile | null): boolean {
 		if (!file) return false;
+		if (this.offFolderOf(file) !== null) return true;
 		const value: unknown = this.app.metadataCache.getFileCache(file)?.frontmatter?.blueproof;
 		return value === 'off' || value === false;
 	}
 
+	/** The folder not checked that a note or folder is in (itself or one above it), or null. */
+	offFolderOf(file: TAbstractFile): string | null {
+		return offFolderOf(file.path, this.settings.offFolders);
+	}
+
+	/** Puts a folder on the list of folders not checked, or takes it off. */
+	async toggleFolder(path: string): Promise<void> {
+		const off = this.settings.offFolders.includes(path);
+		this.settings.offFolders = off ? this.settings.offFolders.filter((f) => f !== path) : [...this.settings.offFolders, path];
+		await this.saveSettings();
+		this.notifyChange();
+		this.statusBar?.update();
+		new Notice(off ? `BlueProof checks the folder "${path}" again.` : `BlueProof does not check the folder "${path}" (Settings, Skipped text).`);
+	}
+
 	/** Sets or removes "blueproof: off" in the note's properties. */
-	private async toggleNote(file: TFile): Promise<void> {
+	async toggleNote(file: TFile): Promise<void> {
 		const off = this.isOff(file);
 		await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 			if (off) delete frontmatter.blueproof;

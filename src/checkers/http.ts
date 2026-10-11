@@ -29,7 +29,7 @@ const serverOf = (url: string): string => {
  * Obsidian's requestUrl (no CORS limits, unlike fetch) with a timeout, which it has none of itself: a request that takes
  * longer is given up on (it may still finish in the background; its answer is ignored).
  */
-async function send(request: Sent, timeoutMs: number, waitForAbandoned = false): Promise<{ status: number; text: string }> {
+async function send(request: Sent, timeoutMs: number, waitForAbandoned = false): Promise<{ status: number; text: string; headers: Record<string, string> }> {
 	const server = serverOf(request.url);
 	let timer: number | undefined;
 	const timeout = new Promise<'timeout'>((resolve) => {
@@ -51,7 +51,7 @@ async function send(request: Sent, timeoutMs: number, waitForAbandoned = false):
 			});
 			throw new Error(`no answer in ${timeoutMs / 1000} s`);
 		}
-		return { status: response.status, text: response.text };
+		return { status: response.status, text: response.text, headers: response.headers };
 	} finally {
 		window.clearTimeout(timer);
 	}

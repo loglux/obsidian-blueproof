@@ -182,6 +182,29 @@ export class BlueProofSettingTab extends PluginSettingTab {
 		return `${rules.length === 1 ? 'One rule' : `${rules.length} rules`}: ${shown}${rules.length > 3 ? '…' : ''}.`;
 	}
 
+	private offFoldersSummary(): string {
+		const folders = this.plugin.settings.offFolders;
+		if (folders.length === 0) return "None. Right-click a folder in the file list: \"Don't check this folder with BlueProof\".";
+		return `${folders.length === 1 ? 'One folder' : `${folders.length} folders`}, with the folders inside: ${folders.slice(0, 3).join(', ')}${folders.length > 3 ? '…' : ''}.`;
+	}
+
+	private openOffFolders(): void {
+		const s = this.plugin.settings;
+		const folders = [...s.offFolders];
+		new ChecklistModal(
+			this.app,
+			'Folders not checked',
+			'Untick a folder to check its notes again.',
+			folders.map((f) => ({ id: f, label: f, checked: true })),
+			[],
+			(result) => {
+				s.offFolders = folders.filter((f) => result.checked.has(f));
+				void this.saved();
+				this.plugin.notifyChange();
+			},
+		).open();
+	}
+
 	private openIgnoredRules(): void {
 		const s = this.plugin.settings;
 		const rules = [...parseIgnoredRules(s.ignoredRules)];
@@ -591,7 +614,7 @@ export class BlueProofSettingTab extends PluginSettingTab {
 							} else {
 								setting.addText((t) =>
 									t
-										.setPlaceholder({ openai: 'gpt-5.4-mini', anthropic: 'claude-haiku-4-5' }[modelServerOf(s().modelUrl)] ?? 'qwen3:14b')
+										.setPlaceholder({ openai: 'gpt-5.4-mini', anthropic: 'claude-haiku-4-5', gemini: 'gemini-3.5-flash-lite' }[modelServerOf(s().modelUrl)] ?? 'qwen3:14b')
 										.setValue(s().modelName)
 										.onChange((value) => void this.setControlValue('modelName', value.trim())),
 								);
@@ -620,6 +643,12 @@ export class BlueProofSettingTab extends PluginSettingTab {
 						name: 'Skip link addresses',
 						desc: 'No findings in link addresses, the note names of [[links]] and embedded files. The visible text of a link is checked.',
 						control: { type: 'toggle', key: 'skipLinks' },
+					},
+					{
+						name: 'Folders not checked',
+						...this.drawn(() => this.offFoldersSummary(), (setting) => {
+							setting.addButton((b) => b.setButtonText('Edit…').setDisabled(s().offFolders.length === 0).onClick(() => this.openOffFolders()));
+						}),
 					},
 					{
 						name: 'Rules never shown',

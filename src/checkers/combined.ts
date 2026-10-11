@@ -32,13 +32,15 @@ export class CombinedGrammarChecker implements GrammarChecker {
 	get waitingFor(): { name: string; waiting: Waiting } | null {
 		let longest: { name: string; waiting: Waiting } | null = null;
 		let count = 0;
+		let pausedUntil: number | null = null;
 		for (const c of this.all) {
 			const w = c.waiting;
 			if (!w || w.count === 0) continue;
 			count += w.count;
+			if (w.pausedUntil != null) pausedUntil = Math.max(pausedUntil ?? 0, w.pausedUntil);
 			if (longest === null || (w.since !== null && (longest.waiting.since === null || w.since < longest.waiting.since))) longest = { name: c.name, waiting: w };
 		}
-		return longest && { name: longest.name, waiting: { count, since: longest.waiting.since } };
+		return longest && { name: longest.name, waiting: { count, since: longest.waiting.since, pausedUntil } };
 	}
 
 	get version(): number {

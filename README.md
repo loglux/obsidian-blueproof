@@ -1,7 +1,7 @@
 
 # BlueProof
 
-Spelling and grammar checking for Obsidian by a language model, on your own computer or in the cloud (OpenAI, Anthropic). It catches the errors
+Spelling and grammar checking for Obsidian by a language model, on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini). It catches the errors
 rule-based checkers miss, as you write. Desktop only.
 
 ![A note with underlined errors and the popup with fixes](docs/images/underlines.png)
@@ -42,8 +42,8 @@ has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the
 
 **Grammar** needs a language model. Choose where it runs:
 
-- **OpenAI** or **Anthropic (Claude)**: works on any computer; paid per use; the paragraphs being checked go to that
-  company. How the cloud models compare: [docs/servers.md](docs/servers.md).
+- **OpenAI**, **Anthropic (Claude)** or **Google Gemini**: works on any computer; paid per use (Gemini has a free tier
+  with a daily limit); the paragraphs being checked go to that company. How the cloud models compare: [docs/servers.md](docs/servers.md).
 - **A model on your own computer**: free and private; needs a graphics card with about 8–12 GB of memory.
 
 ### OpenAI
@@ -60,6 +60,17 @@ has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the
 1. Create an API key in the [Claude Console](https://console.anthropic.com/settings/keys).
 2. **Settings → BlueProof → Model server**: choose **Anthropic Claude**, paste the key, pick a model:
    `claude-sonnet-5-5` found the most in our tests, `claude-haiku-5-5` made no false finding and is quicker.
+3. Press **Check** at the top of the settings.
+
+### Google Gemini
+
+1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey) (free, with daily limits; far higher
+   ones with billing set up).
+2. **Settings → BlueProof → Model server**: choose **Google Gemini**, paste the key, pick a model (measured 2026-10-11;
+   Google's models change): `gemini-3.8-flash` found the most of all the cloud models in our tests, slower on long
+   paragraphs; `gemini-3.5-flash-lite` is the fastest and cheapest, and the one a free key allows most of (500 requests
+   a day, the Flash models 20). Pro and Gemma are not worth it: [docs/servers.md](docs/servers.md). On the free tier
+   Google may use what is sent to improve its products; with billing set up it does not.
 3. Press **Check** at the top of the settings.
 
 ### Ollama
@@ -148,8 +159,8 @@ frequent first, so you can add the right ones in one go. Examples to start from:
 
 ## Privacy
 
-- The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI or Anthropic
-  if you chose one of them.
+- The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI, Anthropic
+  or Google if you chose one of them.
 - No account, no telemetry, no ads. An API key is kept in Obsidian's secret storage and sent
   only to the server it was given for.
 - Hunspell dictionaries are downloaded from LibreOffice's repository on GitHub (`api.github.com`,

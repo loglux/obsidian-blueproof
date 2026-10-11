@@ -40,6 +40,8 @@ export interface BlueProofSettings {
 
 	/** Rules never shown, from any checker, one per line (a language model's rule is its wrong text and fix, with spaces). */
 	ignoredRules: string;
+	/** Folders whose notes are not checked, with the folders inside them: textbooks, clippings (2026-10-10). */
+	offFolders: string[];
 
 	/** Findings in code spans are dropped (code blocks are never checked). */
 	skipCode: boolean;
@@ -61,10 +63,12 @@ export const MODEL_SERVERS: { id: string; name: string; url: string }[] = [
 	{ id: 'lmstudio', name: 'LM Studio', url: 'http://127.0.0.1:1234/v1' },
 	{ id: 'openai', name: 'OpenAI (cloud: the text leaves your computer)', url: 'https://api.openai.com/v1' },
 	{ id: 'anthropic', name: 'Anthropic Claude (cloud: the text leaves your computer)', url: 'https://api.anthropic.com/v1' },
+	// Google's Gemini API in OpenAI's form: the same requests as OpenAI's, at its own address.
+	{ id: 'gemini', name: 'Google Gemini (cloud: the text leaves your computer)', url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
 ];
 
 /** A server in the cloud: it needs a key and a model chosen (it has no default one). */
-export const isCloudServer = (url: string): boolean => ['openai', 'anthropic'].includes(modelServerOf(url));
+export const isCloudServer = (url: string): boolean => ['openai', 'anthropic', 'gemini'].includes(modelServerOf(url));
 
 /** An address as a key: `localhost` and `127.0.0.1`, a final slash and letter case do not make two servers. */
 export const serverKey = (url: string): string => url.trim().replace(/\/+$/, '').toLowerCase().replace('//localhost:', '//127.0.0.1:');
@@ -165,6 +169,7 @@ export const DEFAULT_SETTINGS: BlueProofSettings = {
 	styleOwnInstruction: '',
 
 	ignoredRules: '',
+	offFolders: [],
 
 	skipCode: true,
 	skipLinks: true,
@@ -248,6 +253,8 @@ export function normalizeSettings(raw: unknown): BlueProofSettings {
 	// Text values only: the paths of dictionary notes switched off (ids of the built-in lists of earlier builds do no harm).
 	const off = stored.spellingOff;
 	result.spellingOff = Array.isArray(off) ? off.filter((x): x is string => typeof x === 'string') : [];
+	const folders = stored.offFolders;
+	result.offFolders = Array.isArray(folders) ? folders.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [];
 	if (result.spellingFolder.trim() === '') result.spellingFolder = DEFAULT_SETTINGS.spellingFolder;
 	// Spelling was a switch that did nothing before there was an engine: the engine is chosen now.
 	if (!(result.spelling in SPELLING_ENGINES)) result.spelling = DEFAULT_SETTINGS.spelling;
@@ -288,4 +295,9 @@ function textValues(value: unknown): Record<string, string> {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return result;
 	for (const [k, v] of Object.entries(value as Record<string, unknown>)) if (typeof v === 'string' && v.trim() !== '') result[k] = v;
 	return result;
+}
+
+/** The folder of `offFolders` a path is in (itself or a folder above it), or null. */
+export function offFolderOf(path: string, folders: readonly string[]): string | null {
+	return folders.find((f) => path === f || path.startsWith(`${f}/`)) ?? null;
 }

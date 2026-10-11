@@ -12,7 +12,8 @@ After any of these: **Settings → BlueProof → Status → Check** says whether
 | You have | Grammar by | Notes |
 |---|---|---|
 | A graphics card with 8–12 GB | a local model (llama.cpp or Ollama) | The text stays on your computer. |
-| No graphics card, but you accept the cloud | OpenAI or Anthropic | The paragraphs being checked leave your computer; you pay per use (cost not measured). |
+| No graphics card, but you accept the cloud | OpenAI, Anthropic or Google Gemini | The paragraphs being checked leave your computer; you pay per use (cost not measured). |
+| No graphics card, the cloud, and no payment | Google Gemini's free tier (Flash-Lite) | A few hundred paragraphs a day; Google may use what is sent on the free tier to improve its products. |
 | No graphics card, and no cloud | — | Spelling still works; grammar needs a model. A small model on the processor was not tried. |
 
 Models, measured on the plugin's benchmark (25 errors in plain text, 13 with formulas, and
@@ -25,23 +26,27 @@ correct texts to count false findings; one run):
 | YandexGPT 5 Lite 8B | 4.9 GB | 21/25, 19/25 | 13/13, 12/13, 20 | Russian, a smaller card |
 | gpt-5.4-mini (OpenAI) | — | 25/25, 21/25 | 12/13, 12/13, 1 | no card, cloud accepted |
 
-**The cloud models, on the larger benchmark of 2026-10-10** (207 known errors in 17 sets of short texts, sentence
+**The cloud models, on the larger benchmark of 2026-10-10 and 11** (207 known errors in 16 sets of short texts, sentence
 pairs, long paragraphs and formulas, Russian and English; 67 correct texts to count false findings; one run each):
 
 | Model | Errors found | With a right fix | Findings on correct texts | Other extra findings | A short text | A long paragraph |
 |---|---|---|---|---|---|---|
+| Gemini 3.8 Flash (Google) | 201 | 201 | 6 | 5 | 3.8 s | 20.4 s |
 | gpt-5.5 (OpenAI) | 199 | 199 | 4 | 10 | 1.3 s | 10.3 s |
 | gpt-6-sol (OpenAI) | 198 | 198 | 1 | 5 | 1.4 s | 10.1 s |
 | Claude Sonnet 5.5 (Anthropic) | 197 | 197 | 2 | 4 | 1.8 s | 12.5 s |
 | gpt-5.6-luna (OpenAI) | 196 | 194 | 4 | 8 | 1.3 s | 11.1 s |
+| Gemini 3.5 Flash-Lite (Google) | 191 | 186 | 4 | 9 | 0.6 s | 3.9 s |
 | gpt-5.4-mini (OpenAI) | 196 | 193 | 5 | 8 | 0.9 s | 6.6 s |
 | Claude Haiku 4.5 (Anthropic) | 196 | 190 | 3 | 6 | 1.4 s | 13.5 s |
 | Claude Haiku 5.5 (Anthropic) | 186 | 183 | 0 | 0 | 1.1 s | 7.6 s |
 | gemma3:12b (Ollama, local) | 166 of 200 | 160 | 2 of 65 | 3 | 1.3 s | 22 s |
 
-gpt-5.5, gpt-6-sol and Sonnet 5.5 find the most and fix all they find (gpt-6-sol with one false finding); Haiku 5.5
-made no false finding at all and misses mostly errors seen only from another sentence; gpt-5.4-mini is the fastest. The
-newer OpenAI models were run on the same day; prices were not compared.
+Gemini 3.8 Flash finds the most and fixes all it finds, but is the slowest on a long paragraph: it thinks before it
+answers, which cannot be turned off. gpt-5.5, gpt-6-sol and Sonnet 5.5 come next (gpt-6-sol with one false finding);
+Haiku 5.5 made no false finding at all and misses mostly errors seen only from another sentence; Gemini 3.5 Flash-Lite
+is the fastest and finds as much as gpt-5.4-mini. The Gemini models were run on 2026-10-11 with a paid key; prices were
+not compared. The 6 errors of one set (`en-labels`) are not counted in any row.
 
 The false findings with formulas were measured before the plugin restored LaTeX that models break in their JSON answers
 and took BlueEdit's later formula guards; they are probably fewer now, not measured again. All files are the `Q4_K_M`
@@ -103,6 +108,47 @@ Tried: yes, `claude-haiku-4-5`, `claude-haiku-5-5` and `claude-sonnet-5-5` (2026
 The plugin asks Anthropic in its own API (Messages), not in OpenAI's form. A model that refuses a part of the request
 (newer ones refuse `temperature`, Sonnet 5.5 refuses being made to use the answer's form) is asked again without it.
 The paragraphs being checked are sent to Anthropic.
+
+## Google (Gemini)
+
+Tried: yes, on a free key (2026-10-10) and a paid one (2026-10-11). Measured: `gemini-3.8-flash` and
+`gemini-3.5-flash-lite` (results above), `gemma-4-26b-a4b-it` (below).
+
+1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey); no payment is needed for the free tier.
+2. In the settings: Server **Google Gemini**, the key under **API key** (kept in Obsidian's secret storage and sent only
+   to Google), then **choose a model** from the list the server gives.
+
+Which model, as measured on 2026-10-11 (Google's models change; the newest Flash is worth trying when it comes):
+
+- `gemini-3.8-flash`: found the most of all the cloud models; slower on a long paragraph.
+- `gemini-3.5-flash-lite`: the fastest; as good as gpt-5.4-mini; the cheapest, and the one a free key allows most of.
+- The older Flash and Flash-Lite in the list (3, 3.1, 3.5, 3.6, 3.7) answered a test sentence right; not measured.
+- Not worth choosing: the Pro models (a paid key at Google's first tier allows 250 requests a day, a note or two; they
+  think before every answer and cost the most), and Gemma 4 (below). The 2.5 models answer "no longer available to new
+  users" to a new key.
+
+The plugin asks Google in its OpenAI form. What a key allows is shown on AI Studio's
+[rate limit page](https://aistudio.google.com/rate-limit) for your project. With billing set up (the first tier),
+2026-10-11: 3.8 Flash 1,000 requests a minute and 10,000 a day, 3.5 Flash-Lite 4,000 and 150,000, Pro 25 and 250. On a
+free key it was, per model:
+
+| Model | Requests a minute | Requests a day |
+|---|---|---|
+| Gemini 3.x Flash, 2.5 Flash, 2.5 Flash-Lite | 5–10 | 20 |
+| Gemini 3.5 Flash-Lite, 3.1 Flash-Lite | 15 | 500 |
+| Gemma 4 (26B, 31B) | 30 | 14,400 |
+| Gemini Pro | none on the free tier | |
+
+A request goes for each paragraph changed, so 20 a day is enough to try the plugin, not to write with it. When a
+limit is reached the plugin says so; where Google says how long to wait, it sends nothing until then and goes on by
+itself (the status bar: *Limit · until 14:32*). On the free tier Google may use what is sent to improve its products (its terms);
+a key with billing set up is not used so.
+
+Gemma 4 through Google is not worth choosing: it loops in its answer (the same words up to the length limit), at any
+temperature and in pieces of 600 characters too, and gave no answer for 43 of 274 texts, every long paragraph among
+them. Google also blocks an answer now and then as "recitation" (copying a text): the answer holds the corrected text,
+nearly the same as the text sent; the plugin shows nothing for that paragraph.
+The paragraphs being checked are sent to Google.
 
 ## A server on another computer
 

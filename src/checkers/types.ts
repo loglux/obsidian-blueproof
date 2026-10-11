@@ -33,10 +33,14 @@ export interface GrammarIssue {
  */
 export const findingKey = (rule: string, wrong: string): string => `${rule}@${wrong}`;
 
-/** Paragraphs sent and not answered yet: how many, and since when the one being asked now has waited (ms since epoch). */
+/**
+ * Paragraphs sent and not answered yet: how many, and since when the one being asked now has waited (ms since epoch);
+ * `pausedUntil` when the server's limit of requests was reached and it said until when to wait.
+ */
 export interface Waiting {
 	count: number;
 	since: number | null;
+	pausedUntil?: number | null;
 }
 
 /** Checks paragraphs of prose for grammar. Slow, so answers come in the background. */

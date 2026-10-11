@@ -45,16 +45,16 @@ pairs, long paragraphs and formulas, Russian and English; 67 correct texts to co
 Gemini 3.8 Flash finds the most and fixes all it finds, but is the slowest on a long paragraph: it thinks before it
 answers, which cannot be turned off. gpt-5.5, Sonnet 5.5 and gpt-6-sol come next (one false finding on correct texts for
 the last two), then Haiku 5.5 with none, at about a twentieth of Sonnet's price; Gemini 3.5 Flash-Lite is the fastest
-and finds as much as gpt-5.4-mini. The Gemini models were run on 2026-10-11 with a paid key; prices were not compared.
+and finds a little fewer than gpt-5.4-mini. The Gemini models were run on 2026-10-11 with a paid key; prices were not compared.
 The 6 errors of one set (`en-labels`) are not counted in any row.
 
 The Claude rows are of 2026-10-11, asked as the plugin asks them since: by Anthropic's own schema format, in which they
 may think before answering. Asked the way before (a tool they were made to call), Haiku 5.5 found 186 (183 right, no
 false finding) at 1.1 s a short text and 7.6 s a long paragraph, Sonnet 5.5 197; every Claude run that day was slower
-than the day before, so part of the time is the server's. Since 2026-10-11 the plugin also asks OpenAI and Google for the
-schema in strict mode; measured once: gpt-5.4-mini found 194, Flash-Lite 181 (as many as before on 15 sets of 16,
-13 false findings down to 2; the 16th, long Russian paragraphs, varied as much between its earlier runs). The other rows
-are of before; how much a model varies from run to run is not measured yet.
+than the day before, so part of the time is the server's. Since 2026-10-11 the plugin asks OpenAI for the schema in strict
+mode (gpt-5.4-mini then found 194, as good as before). Run again several times on 2026-10-11: Haiku 5.5 found 197, 193
+and 196; Gemini 3.5 Flash-Lite 180 to 191 in four runs as the plugin asks it (fewer than gpt-5.4-mini, mostly in long
+Russian paragraphs), with 2 to 6 false findings. The other rows are of one run each.
 
 The false findings with formulas were measured before the plugin restored LaTeX that models break in their JSON answers
 and took BlueEdit's later formula guards; they are probably fewer now, not measured again. All files are the `Q4_K_M`
@@ -130,7 +130,7 @@ Tried: yes, on a free key (2026-10-10) and a paid one (2026-10-11). Measured: `g
 Which model, as measured on 2026-10-11 (Google's models change; the newest Flash is worth trying when it comes):
 
 - `gemini-3.8-flash`: found the most of all the cloud models; slower on a long paragraph.
-- `gemini-3.5-flash-lite`: the fastest; as good as gpt-5.4-mini; the cheapest, and the one a free key allows most of.
+- `gemini-3.5-flash-lite`: the fastest; a little behind gpt-5.4-mini; the cheapest, and the one a free key allows most of.
 - The older Flash and Flash-Lite in the list (3, 3.1, 3.5, 3.6, 3.7) answered a test sentence right; not measured.
 - Not worth choosing: the Pro models (a paid key at Google's first tier allows 250 requests a day, a note or two; they
   think before every answer and cost the most), and Gemma 4 (below). The 2.5 models answer "no longer available to new

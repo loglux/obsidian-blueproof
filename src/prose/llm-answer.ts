@@ -32,8 +32,10 @@ export function restoreLatex(original: string, answer: string): string {
 	return result;
 }
 
-// Characters of Markdown and LaTeX markup: a change that only adds or removes them is not about the words.
-const MARKUP = /[\s*_`~#>[\]()|\\$]/g;
+// Characters of Markdown and LaTeX markup: a change that only adds or removes them is not about the words. Braces and ^
+// too: a model put "}" next to a display formula ("$$…$$" on lines of their own, Gemini 3.5 Flash-Lite, 2026-10-11),
+// shown as "Possibly: }" on the edge of the formula, where the formula guard does not reach.
+const MARKUP = /[\s*_`~#>[\]{}()^|\\$]/g;
 const onlyMarkup = (wrong: string, replacement: string): boolean => wrong.replace(MARKUP, '') === replacement.replace(MARKUP, '');
 // A change that puts a LaTeX command where there was none: the model "fixing" the markup (Gemma 3 12B put "\\" between the
 // rows of an align, BlueEdit #115), never a fix of the prose.

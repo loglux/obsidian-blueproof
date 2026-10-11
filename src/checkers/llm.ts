@@ -179,7 +179,7 @@ export interface RequestProfile {
 	schemaOutput?: boolean;
 	/**
 	 * OpenAI's form: the schema in strict mode (`strict: true`, every object closed, every field required), which OpenAI's
-	 * and Google's servers hold the answer to (docs/provider-rules.md). Local servers hold it to the schema anyway.
+	 * server holds the answer to (docs/provider-rules.md). Local servers hold it to the schema anyway; Google's was worse with it.
 	 */
 	strictSchema?: boolean;
 	/** Anthropic: `output_config.effort` (`low` … `max`); unset, the model's default (`high`, Haiku 5.5 `medium`). */
@@ -228,7 +228,9 @@ const KNOWN_PROFILES: ({ server: RegExp; model?: string | RegExp; omit: string[]
 	// Google's OpenAI form, for every model: 'Unknown name "chat_template_kwargs": Cannot find field.' Gemma 4 and
 	// gemini-3.5-flash-lite refuse reasoning_effort "none" (adaptProfile reads that too). Gemma 4 at temperature 0 loops
 	// ("в прошедшем времени в прошедшем времени…" up to the length limit, a short Russian text): its default, 3 of 3 right.
-	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, omit: ['chat_template_kwargs'], strictSchema: true },
+	// Not the strict schema, though Google takes it: gemini-3.5-flash-lite found 25 of 40 errors in long Russian paragraphs in
+	// 3 runs of 4 with it, 35 to 37 in 3 of 3 without, and no fewer false findings (2026-10-11).
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, omit: ['chat_template_kwargs'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-31b-it', omit: ['reasoning_effort', 'temperature'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-26b-a4b-it', omit: ['reasoning_effort', 'temperature'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemini-3.5-flash-lite', omit: ['reasoning_effort'] },

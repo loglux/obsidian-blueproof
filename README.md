@@ -24,14 +24,11 @@ seeing *She*, gives *doesn't* and says why:
 
 ## Installation
 
-BlueProof is not in Obsidian's community plugin list yet. Until it is:
+In Obsidian: **Settings → Community plugins → Browse**, search for **BlueProof**, install it and turn it on. Updates come
+through **Check for updates** there, though a new release may take a while to show.
 
-1. Download `main.js`, `manifest.json` and `styles.css` from the [latest release](../../releases/latest).
-2. Put them into `<your vault>/.obsidian/plugins/blueproof/`.
-3. In Obsidian: **Settings → Community plugins**, turn on **BlueProof**.
-
-Or with [BRAT](https://github.com/TfTHacker/obsidian42-brat): add this repository's address, and BRAT keeps the plugin
-up to date.
+Or by hand: download `main.js`, `manifest.json` and `styles.css` from the [latest release](../../releases/latest), put them
+into `<your vault>/.obsidian/plugins/blueproof/`, and turn on **BlueProof** under **Settings → Community plugins**.
 
 ## Setup
 

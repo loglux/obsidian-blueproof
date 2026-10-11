@@ -17,6 +17,11 @@ rule-based checkers miss, as you write. Desktop only.
 - **Leaves code, links and math alone**, LaTeX formulas included, while the sentence around them is still checked.
 - **Style suggestions** on a command; nothing in your note changes until you pick a fix.
 
+A spelling checker sees one word; the model reads the sentence. Here the dictionary offers *don't*, and the model,
+seeing *She*, gives *doesn't* and says why:
+
+![One word, two checkers: the spelling dictionary offers don't, the model doesn't](docs/images/two-checkers.png)
+
 ## Installation
 
 BlueProof is not in Obsidian's community plugin list yet. Until it is:

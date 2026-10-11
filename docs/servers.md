@@ -33,20 +33,28 @@ pairs, long paragraphs and formulas, Russian and English; 67 correct texts to co
 |---|---|---|---|---|---|---|
 | Gemini 3.8 Flash (Google) | 201 | 201 | 6 | 5 | 3.8 s | 20.4 s |
 | gpt-5.5 (OpenAI) | 199 | 199 | 4 | 10 | 1.3 s | 10.3 s |
+| Claude Sonnet 5.5 (Anthropic) | 198 | 198 | 1 | 3 | 2.0 s | 15.7 s |
 | gpt-6-sol (OpenAI) | 198 | 198 | 1 | 5 | 1.4 s | 10.1 s |
-| Claude Sonnet 5.5 (Anthropic) | 197 | 197 | 2 | 4 | 1.8 s | 12.5 s |
+| Claude Haiku 5.5 (Anthropic) | 197 | 195 | 0 | 3 | 2.0 s | 16.8 s |
 | gpt-5.6-luna (OpenAI) | 196 | 194 | 4 | 8 | 1.3 s | 11.1 s |
 | Gemini 3.5 Flash-Lite (Google) | 191 | 186 | 4 | 9 | 0.6 s | 3.9 s |
 | gpt-5.4-mini (OpenAI) | 196 | 193 | 5 | 8 | 0.9 s | 6.6 s |
 | Claude Haiku 4.5 (Anthropic) | 196 | 190 | 3 | 6 | 1.4 s | 13.5 s |
-| Claude Haiku 5.5 (Anthropic) | 186 | 183 | 0 | 0 | 1.1 s | 7.6 s |
 | gemma3:12b (Ollama, local) | 166 of 200 | 160 | 2 of 65 | 3 | 1.3 s | 22 s |
 
 Gemini 3.8 Flash finds the most and fixes all it finds, but is the slowest on a long paragraph: it thinks before it
-answers, which cannot be turned off. gpt-5.5, gpt-6-sol and Sonnet 5.5 come next (gpt-6-sol with one false finding);
-Haiku 5.5 made no false finding at all and misses mostly errors seen only from another sentence; Gemini 3.5 Flash-Lite
-is the fastest and finds as much as gpt-5.4-mini. The Gemini models were run on 2026-10-11 with a paid key; prices were
-not compared. The 6 errors of one set (`en-labels`) are not counted in any row.
+answers, which cannot be turned off. gpt-5.5, Sonnet 5.5 and gpt-6-sol come next (one false finding on correct texts for
+the last two), then Haiku 5.5 with none, at about a twentieth of Sonnet's price; Gemini 3.5 Flash-Lite is the fastest
+and finds as much as gpt-5.4-mini. The Gemini models were run on 2026-10-11 with a paid key; prices were not compared.
+The 6 errors of one set (`en-labels`) are not counted in any row.
+
+The Claude rows are of 2026-10-11, asked as the plugin asks them since: by Anthropic's own schema format, in which they
+may think before answering. Asked the way before (a tool they were made to call), Haiku 5.5 found 186 (183 right, no
+false finding) at 1.1 s a short text and 7.6 s a long paragraph, Sonnet 5.5 197; every Claude run that day was slower
+than the day before, so part of the time is the server's. Since 2026-10-11 the plugin also asks OpenAI and Google for the
+schema in strict mode; measured once: gpt-5.4-mini found 194, Flash-Lite 181 (as many as before on 15 sets of 16,
+13 false findings down to 2; the 16th, long Russian paragraphs, varied as much between its earlier runs). The other rows
+are of before; how much a model varies from run to run is not measured yet.
 
 The false findings with formulas were measured before the plugin restored LaTeX that models break in their JSON answers
 and took BlueEdit's later formula guards; they are probably fewer now, not measured again. All files are the `Q4_K_M`
@@ -95,7 +103,7 @@ Tried: yes, `gpt-5.4-mini`.
 2. In the settings: Server **OpenAI**, the key under **API key** (kept in Obsidian's secret storage, not in the plugin's
    settings file, and sent only to OpenAI: each server keeps a key of its own), then **choose a model**: OpenAI has no default and refuses a request without one.
 
-The paragraphs being checked are sent to OpenAI.
+The paragraphs being checked are sent to OpenAI. By its data controls page (read 2026-10-11) what the API is sent is not used to train its models unless you opt in, and is kept up to 30 days for abuse monitoring.
 
 ## Anthropic (Claude)
 
@@ -106,8 +114,9 @@ Tried: yes, `claude-haiku-4-5`, `claude-haiku-5-5` and `claude-sonnet-5-5` (2026
    to Anthropic), then **choose a model** from the list the server gives.
 
 The plugin asks Anthropic in its own API (Messages), not in OpenAI's form. A model that refuses a part of the request
-(newer ones refuse `temperature`, Sonnet 5.5 refuses being made to use the answer's form) is asked again without it.
-The paragraphs being checked are sent to Anthropic.
+(newer ones refuse `temperature`) is asked again without it. Haiku 5.5 and Sonnet 5.5, and a newer model that refuses
+being made to call a tool, are asked for the answer by Anthropic's own schema format.
+The paragraphs being checked are sent to Anthropic. By its data retention page (read 2026-10-11) they are not used for training without your permission and not kept by default (a request its safety systems flag may be kept up to 2 years).
 
 ## Google (Gemini)
 

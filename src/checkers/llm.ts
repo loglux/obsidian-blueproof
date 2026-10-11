@@ -172,7 +172,24 @@ export interface RequestProfile {
 	 * reasoning_effort "low" in place of "none", which it may refuse.
 	 */
 	thinks: boolean;
+	/**
+	 * Anthropic: the answer as JSON by its own schema format (`output_config.format`) in place of a forced tool, which
+	 * Sonnet 5.5 and Opus 5.5 refuse; Anthropic's advice for them (docs/provider-rules.md).
+	 */
+	schemaOutput?: boolean;
+	/**
+	 * OpenAI's form: the schema in strict mode (`strict: true`, every object closed, every field required), which OpenAI's
+	 * and Google's servers hold the answer to (docs/provider-rules.md). Local servers hold it to the schema anyway.
+	 */
+	strictSchema?: boolean;
+	/** Anthropic: `output_config.effort` (`low` … `max`); unset, the model's default (`high`, Haiku 5.5 `medium`). */
+	effort?: string;
+	/** Anthropic: `thinking.type`, `disabled` (Haiku 5.5) or `between_tools` (Sonnet 5.5) to turn up-front thinking off. */
+	thinking?: string;
 }
+
+/** What the benchmark sets on every profile to compare ways of asking; the plugin sets nothing. */
+export type ProfileOverride = Pick<RequestProfile, 'schemaOutput' | 'strictSchema' | 'effort' | 'thinking'>;
 
 /** Room for the thinking of a model that cannot turn it off: 200 to 330 tokens measured on short texts (Gemini 3, 2026-10-11). */
 export const THINKING_ROOM = 2048;
@@ -184,28 +201,34 @@ export interface StoredProfile {
 	omit: string[];
 	completionTokens: boolean;
 	thinks?: boolean;
+	schemaOutput?: boolean;
 }
 
 /**
  * What the models tried so far refuse, so that even their first request goes through at once (measured 2026-10-10:
  * the benchmark and a probe of each). Anything else, a new model among it, is learnt from its own answers.
  */
-const KNOWN_PROFILES: { server: RegExp; model?: string | RegExp; omit: string[]; completionTokens?: boolean; thinks?: boolean }[] = [
+const KNOWN_PROFILES: ({ server: RegExp; model?: string | RegExp; omit: string[]; completionTokens?: boolean; thinks?: boolean } & ProfileOverride)[] = [
 	// OpenAI's server, for every model: "Unknown parameter: 'chat_template_kwargs'" (llama.cpp's switch); and every one
 	// tried (gpt-5.4-mini, 5.5, 5.6-luna/sol/terra, 6-astra/luna/sol, 6.1-sol): "'max_tokens' is not supported with this
 	// model. Use 'max_completion_tokens' instead."
-	{ server: /^https:\/\/api\.openai\.com\//i, omit: ['chat_template_kwargs'], completionTokens: true },
+	{ server: /^https:\/\/api\.openai\.com\//i, omit: ['chat_template_kwargs'], completionTokens: true, strictSchema: true },
 	// Reasoning models that cannot turn thinking off: "'reasoning_effort' does not support 'none'", and "'temperature'
 	// does not support 0 with this model. Only the default (1) value is supported."
 	{ server: /^https:\/\/api\.openai\.com\//i, model: 'gpt-6-astra', omit: ['reasoning_effort', 'temperature'] },
 	{ server: /^https:\/\/api\.openai\.com\//i, model: 'gpt-6.1-sol', omit: ['reasoning_effort', 'temperature'] },
 	// "`temperature` is deprecated for this model"; Sonnet also: "tool_choice: type "tool" and "any" are not supported"
-	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-haiku-5-5', omit: ['temperature'] },
-	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-sonnet-5-5', omit: ['temperature', 'tool_choice'] },
+	// Made to call the tool, Haiku 5.5 does not think ("Where forced tool use is accepted, the response starts with the
+	// tool call and has no thinking block", Anthropic's thinking page); asked by the schema format it thinks, and found 197
+	// errors of 207 against 186, none on correct texts either, at 2.0 s a short paragraph against 1.1 s (2026-10-11).
+	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-haiku-5-5', omit: ['temperature'], schemaOutput: true },
+	// Sonnet 5.5 refuses the forced tool; Anthropic's advice for such models is its schema format: 198 of 207 found, all
+	// fixed right, 4 false findings against 6 by an unforced tool (2026-10-11).
+	{ server: /^https:\/\/api\.anthropic\.com\//i, model: 'claude-sonnet-5-5', omit: ['temperature'], schemaOutput: true },
 	// Google's OpenAI form, for every model: 'Unknown name "chat_template_kwargs": Cannot find field.' Gemma 4 and
 	// gemini-3.5-flash-lite refuse reasoning_effort "none" (adaptProfile reads that too). Gemma 4 at temperature 0 loops
 	// ("в прошедшем времени в прошедшем времени…" up to the length limit, a short Russian text): its default, 3 of 3 right.
-	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, omit: ['chat_template_kwargs'] },
+	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, omit: ['chat_template_kwargs'], strictSchema: true },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-31b-it', omit: ['reasoning_effort', 'temperature'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-26b-a4b-it', omit: ['reasoning_effort', 'temperature'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemini-3.5-flash-lite', omit: ['reasoning_effort'] },
@@ -229,6 +252,10 @@ export function knownProfile(key: string): RequestProfile {
 		for (const field of k.omit) profile.omit.add(field);
 		if (k.completionTokens) profile.completionTokens = true;
 		if (k.thinks) profile.thinks = true;
+		if (k.schemaOutput) profile.schemaOutput = true;
+		if (k.strictSchema) profile.strictSchema = true;
+		if (k.effort) profile.effort = k.effort;
+		if (k.thinking) profile.thinking = k.thinking;
 	}
 	return profile;
 }
@@ -244,13 +271,14 @@ export class RequestProfiles {
 	constructor(
 		private readonly load: () => Record<string, StoredProfile> = () => ({}),
 		private readonly save: (all: Record<string, StoredProfile>) => void = () => {},
+		private readonly override: ProfileOverride = {},
 	) {}
 
 	get(key: string): RequestProfile {
 		if (this.profiles === null) {
 			this.profiles = new Map();
 			for (const [k, p] of Object.entries(this.load())) {
-				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true, thinks: p.thinks === true });
+				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true, thinks: p.thinks === true, ...(p.schemaOutput === true ? { schemaOutput: true } : {}) });
 			}
 		}
 		let profile = this.profiles.get(key);
@@ -260,13 +288,17 @@ export class RequestProfiles {
 		for (const field of known.omit) profile.omit.add(field);
 		if (known.completionTokens) profile.completionTokens = true;
 		if (known.thinks) profile.thinks = true;
-		return profile;
+		if (known.schemaOutput) profile.schemaOutput = true;
+		if (known.strictSchema) profile.strictSchema = true;
+		profile.effort ??= known.effort;
+		profile.thinking ??= known.thinking;
+		return Object.assign(profile, this.override);
 	}
 
 	/** A profile has learnt something: keep them all. */
 	changed(): void {
 		const all: Record<string, StoredProfile> = {};
-		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens || p.thinks) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens, ...(p.thinks ? { thinks: true } : {}) };
+		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens || p.thinks || p.schemaOutput) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens, ...(p.thinks ? { thinks: true } : {}), ...(p.schemaOutput ? { schemaOutput: true } : {}) };
 		this.save(all);
 	}
 }
@@ -300,9 +332,12 @@ export function adaptProfile(profile: RequestProfile, answer: string): boolean {
 	// Anthropic names the field in backquotes: "`temperature` is deprecated for this model" (Claude Haiku 5.5 and Sonnet
 	// 5.5, 2026-10-10; Haiku 4.5 takes it).
 	param ??= /`([a-z_]+)` is (?:deprecated|not supported)/i.exec(answer)?.[1] ?? null;
-	// "tool_choice: type \"tool\" and \"any\" are not supported for this model" (Claude Sonnet 5.5, 2026-10-10): the tool
-	// stays offered, the model is no longer made to call it.
-	param ??= /^(tool_choice): type/.exec(errorMessage(answer))?.[1] ?? null;
+	// "tool_choice: type \"tool\" and \"any\" are not supported for this model" (Claude Sonnet 5.5, 2026-10-10; Opus 5.5 and
+	// Fable 5.1 too): asked by Anthropic's schema format instead, its advice for these models (docs/provider-rules.md).
+	if (!profile.schemaOutput && /^tool_choice: type/.test(errorMessage(answer))) {
+		profile.schemaOutput = true;
+		return true;
+	}
 	// Google names no field (2026-10-10): Gemma, "Thinking budget is not supported for this model."; gemini-3.5-flash-lite,
 	// "Request contains an invalid argument." for reasoning_effort "none" alone. The thinking switch is tried first.
 	// gemini-3.1-pro-preview, for "none" (2026-10-11): "Budget 0 is invalid. This model only works in thinking mode."
@@ -359,16 +394,51 @@ export function anthropicBody(request: ChatRequest, model: string, profile: Requ
 	const body: Record<string, unknown> = {
 		model: model.trim(),
 		// At least 1024: Claude Sonnet 5.5 explains in full, and a short Russian sentence (a limit of about 360) was cut off
-		// in 4 texts of 200 (2026-10-10). Only the tokens written are paid for.
-		max_tokens: Math.max(1024, request.maxTokens),
+		// in 4 texts of 200 (2026-10-10); its thinking counts against the limit too. Only the tokens written are paid for.
+		// Not made to call a tool, Haiku 5.5 thinks first, and 7 long paragraphs of 12 were cut off (2026-10-11): room for it.
+		max_tokens: Math.max(1024, request.maxTokens) + (profile.thinks || (profile.schemaOutput && profile.thinking === undefined) ? THINKING_ROOM : 0),
 		temperature: 0,
 		system: request.system,
 		messages: [{ role: 'user', content: request.user }],
-		tools: [{ name: request.schemaName, description: 'Give the answer.', input_schema: request.schema }],
-		tool_choice: { type: 'tool', name: request.schemaName },
 	};
+	const outputConfig: Record<string, unknown> = {};
+	if (profile.schemaOutput) {
+		outputConfig.format = { type: 'json_schema', schema: closedSchema(request.schema) };
+	} else {
+		body.tools = [{ name: request.schemaName, description: 'Give the answer.', input_schema: request.schema }];
+		body.tool_choice = { type: 'tool', name: request.schemaName };
+	}
+	if (profile.effort) outputConfig.effort = profile.effort;
+	if (Object.keys(outputConfig).length > 0) body.output_config = outputConfig;
+	if (profile.thinking) body.thinking = { type: profile.thinking };
 	for (const key of profile.omit) delete body[key];
 	return JSON.stringify(body);
+}
+
+/** OpenAI's strict mode: every object closed and every field required (an optional list then comes empty). */
+export function strictSchema(schema: unknown): unknown {
+	const closed = closedSchema(schema);
+	const require = (node: unknown): void => {
+		if (Array.isArray(node)) return node.forEach(require);
+		if (typeof node !== 'object' || node === null) return;
+		const o = node as Record<string, unknown>;
+		if (o.type === 'object' && typeof o.properties === 'object' && o.properties !== null) o.required = Object.keys(o.properties);
+		for (const [k, v] of Object.entries(o)) (k === 'properties' && typeof v === 'object' && v !== null ? Object.values(v) : [v]).forEach(require);
+	};
+	require(closed);
+	return closed;
+}
+
+/** The schema with `additionalProperties: false` on every object, which Anthropic's schema format wants. */
+export function closedSchema(schema: unknown): unknown {
+	if (Array.isArray(schema)) return schema.map(closedSchema);
+	if (typeof schema !== 'object' || schema === null) return schema;
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
+		out[k] = k === 'properties' && typeof v === 'object' && v !== null ? Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([p, s]) => [p, closedSchema(s)])) : closedSchema(v);
+	}
+	if (out.type === 'object') out.additionalProperties = false;
+	return out;
 }
 
 /** The answer of an Anthropic request: the tool's input as JSON text, why it stopped, the model. Throws when it is not one. */
@@ -446,7 +516,10 @@ export function chatBody(request: ChatRequest, model: string, profile: RequestPr
 		temperature: 0,
 		[profile.completionTokens ? 'max_completion_tokens' : 'max_tokens']: request.maxTokens + (profile.thinks ? THINKING_ROOM : 0),
 		// llama.cpp holds generation to the schema.
-		response_format: { type: 'json_schema', json_schema: { name: request.schemaName, schema: request.schema } },
+		response_format: {
+			type: 'json_schema',
+			json_schema: profile.strictSchema ? { name: request.schemaName, strict: true, schema: strictSchema(request.schema) } : { name: request.schemaName, schema: request.schema },
+		},
 		// A "thinking" model would think first, which takes long and is not needed to proofread. Each server has its own switch:
 		// llama.cpp takes chat_template_kwargs (OpenAI refuses it, and the profile then leaves it out); Ollama and OpenAI take
 		// reasoning_effort (a model that cannot turn thinking off is refused it, and the profile leaves it out too).

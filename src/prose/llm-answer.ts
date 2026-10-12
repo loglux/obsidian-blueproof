@@ -89,11 +89,29 @@ export interface AnswerOptions {
 	listedOnly?: boolean;
 }
 
+/** What the model changed in `text`, with the LaTeX its JSON broke put back; trailing spaces and newlines left out. */
+function changesIn(text: string, corrected: string): TextChange[] {
+	// The model may drop or add a final newline or trailing spaces: compare what it was asked about.
+	return changes(text.trimEnd(), restoreLatex(text, corrected).trimEnd());
+}
+
+/**
+ * Whether the model rewrote `text` rather than corrected it: more than MAX_CHANGED_SHARE changed, so `issuesFrom` shows
+ * nothing of the answer. False for an answer that is not the JSON asked for (`issuesFrom` says why).
+ */
+export function rewrote(text: string, answer: string): boolean {
+	try {
+		const data = JSON.parse(answer) as { corrected?: unknown };
+		return typeof data.corrected === 'string' && changedShare(text, changesIn(text, data.corrected)) > MAX_CHANGED_SHARE;
+	} catch {
+		return false;
+	}
+}
+
 /** The model's JSON answer as findings in `text`. Throws when the answer is not the JSON that was asked for. */
 export function issuesFrom(text: string, answer: string, language: string, source = 'Language model', options: AnswerOptions = {}): GrammarIssue[] {
 	const data = JSON.parse(answer) as { corrected?: unknown; errors?: unknown };
 	if (typeof data.corrected !== 'string') throw new Error('The answer has no corrected text.');
-	const corrected = restoreLatex(text, data.corrected);
 	const notes = notesFrom(data.errors).map((n) => ({
 		original: restoreLatex(text, n.original),
 		replacement: restoreLatex(text, n.replacement),
@@ -101,8 +119,7 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 		alternatives: n.alternatives.map((a) => restoreLatex(text, a)),
 	}));
 
-	// The model may drop or add a final newline or trailing spaces: compare what it was asked about.
-	const diff = changes(text.trimEnd(), corrected.trimEnd());
+	const diff = changesIn(text, data.corrected);
 	if (changedShare(text, diff) > MAX_CHANGED_SHARE) return [];
 	// Joined after the guard: the words a join takes in between were not rewritten, and counted they dropped a short
 	// sentence ("She dont know where is the station.": 0.40 before the join, 0.51 after; BlueEdit #149).

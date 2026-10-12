@@ -53,8 +53,9 @@ may think before answering. Asked the way before (a tool they were made to call)
 false finding) at 1.1 s a short text and 7.6 s a long paragraph, Sonnet 5.5 197; every Claude run that day was slower
 than the day before, so part of the time is the server's. Since 2026-10-11 the plugin asks OpenAI for the schema in strict
 mode (gpt-5.4-mini then found 194, as good as before). Run again several times on 2026-10-11: Haiku 5.5 found 197, 193
-and 196; Gemini 3.5 Flash-Lite 180 to 191 in four runs as the plugin asks it (fewer than gpt-5.4-mini, mostly in long
-Russian paragraphs), with 2 to 6 false findings. The other rows are of one run each.
+and 196; Gemini 3.5 Flash-Lite 180 to 191 in four runs through Google's OpenAI form (fewer than gpt-5.4-mini, mostly in
+long Russian paragraphs), with 2 to 6 false findings, and 180 to 190 in six runs through Google's own API (2026-10-12), as
+the plugin asks it since 0.4.12, with 1 to 3. The other rows are of one run each.
 
 The false findings with formulas were measured before the plugin restored LaTeX that models break in their JSON answers
 and took BlueEdit's later formula guards; they are probably fewer now, not measured again. All files are the `Q4_K_M`
@@ -127,6 +128,13 @@ Tried: yes, on a free key (2026-10-10) and a paid one (2026-10-11). Measured: `g
 2. In the settings: Server **Google Gemini**, the key under **API key** (kept in Obsidian's secret storage and sent only
    to Google), then **choose a model** from the list the server gives.
 
+The plugin asks Google through its own API (Interactions), from 0.4.12; settings with the earlier address are moved to it
+once, with their key and model. Measured on gemini-3.5-flash-lite, 2026-10-12: through Google's OpenAI form the model
+sometimes answered a piece of a long Russian paragraph with no change at all and lost its errors at once (2 runs of 3);
+through its own API not once in 6 runs, and found about 6 errors more on average. The OpenAI form stays in the list as
+**Google Gemini, OpenAI form (a fallback)**, should Google's own API stop answering. The plugin asks Google not to keep
+what is sent (`store: false`).
+
 Which model, as measured on 2026-10-11 (Google's models change; the newest Flash is worth trying when it comes):
 
 - `gemini-3.8-flash`: found the most of all the cloud models; slower on a long paragraph.
@@ -136,7 +144,7 @@ Which model, as measured on 2026-10-11 (Google's models change; the newest Flash
   think before every answer and cost the most), and Gemma 4 (below). The 2.5 models answer "no longer available to new
   users" to a new key.
 
-The plugin asks Google in its OpenAI form. What a key allows is shown on AI Studio's
+What a key allows is shown on AI Studio's
 [rate limit page](https://aistudio.google.com/rate-limit) for your project. With billing set up (the first tier),
 2026-10-11: 3.8 Flash 1,000 requests a minute and 10,000 a day, 3.5 Flash-Lite 4,000 and 150,000, Pro 25 and 250. On a
 free key it was, per model:

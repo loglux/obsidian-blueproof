@@ -3,8 +3,8 @@
 // No `obsidian` import: the HTTP call is passed in (see http.ts).
 import { type Chunk, CHUNK_SIZE, chunksOf, sentenceStarts, WHOLE_UP_TO } from '../prose/chunks';
 import { formulasIn } from '../prose/lines';
-import { issuesFrom } from '../prose/llm-answer';
-import { AnswerCache } from './answer-cache';
+import { issuesFrom, rewrote } from '../prose/llm-answer';
+import { AnswerCache, isFinal } from './answer-cache';
 import type { GrammarChecker, GrammarIssue, Waiting } from './types';
 
 export interface PostJsonOptions {
@@ -229,7 +229,8 @@ const KNOWN_PROFILES: ({ server: RegExp; model?: string | RegExp; omit: string[]
 	// gemini-3.5-flash-lite refuse reasoning_effort "none" (adaptProfile reads that too). Gemma 4 at temperature 0 loops
 	// ("в прошедшем времени в прошедшем времени…" up to the length limit, a short Russian text): its default, 3 of 3 right.
 	// Not the strict schema, though Google takes it: gemini-3.5-flash-lite found 25 of 40 errors in long Russian paragraphs in
-	// 3 runs of 4 with it, 35 to 37 in 3 of 3 without, and no fewer false findings (2026-10-11).
+	// 3 runs of 4 with it; without it 35 to 37 in 3 runs, but 25 again in 3 of 4 more (2026-10-11/12). Its own API had none
+	// of that in 6 runs, and is the Gemini server since 0.4.12 (settings.ts).
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, omit: ['chat_template_kwargs'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-31b-it', omit: ['reasoning_effort', 'temperature'] },
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: 'gemma-4-26b-a4b-it', omit: ['reasoning_effort', 'temperature'] },
@@ -363,6 +364,7 @@ export function adaptProfile(profile: RequestProfile, answer: string): boolean {
 /** The address of the model list: the chat address's `…/v1` with `/models`. */
 export function modelsUrl(base: string): string {
 	if (isAnthropic(base)) return `${anthropicBase(base)}/models?limit=1000`;
+	if (isGoogleNative(base)) return `${googleBase(base)}/models?pageSize=1000`;
 	return chatUrl(base).replace(/\/chat\/completions$/, '/models');
 }
 
@@ -381,10 +383,32 @@ function anthropicBase(base: string): string {
 	return base.trim().replace(/^(https?:\/\/api\.anthropic\.com).*$/i, '$1/v1');
 }
 
-/** The headers a server wants with its key: Anthropic's x-api-key and version, or a bearer token. */
+/**
+ * Google's own API, not its OpenAI form (`…/v1beta/openai`): its address without `/openai`. Asked through Interactions,
+ * which Google recommends "for all new projects" and where its new models and features come first (read 2026-10-12).
+ */
+export function isGoogleNative(base: string): boolean {
+	const b = base.trim().replace(/\/+$/, '');
+	return /^https?:\/\/generativelanguage\.googleapis\.com(\/|$)/i.test(b) && !/\/openai(\/|$)/i.test(b);
+}
+
+/** `https://generativelanguage.googleapis.com/v1beta`, whatever path was given after the host. */
+function googleBase(base: string): string {
+	return base.trim().replace(/^(https?:\/\/generativelanguage\.googleapis\.com).*$/i, '$1/v1beta');
+}
+
+/** The address a request goes to: Anthropic's messages, Google's interactions, or OpenAI's chat completions. */
+export function requestUrl(base: string): string {
+	if (isAnthropic(base)) return `${anthropicBase(base)}/messages`;
+	if (isGoogleNative(base)) return `${googleBase(base)}/interactions`;
+	return chatUrl(base);
+}
+
+/** The headers a server wants with its key: Anthropic's x-api-key and version, Google's x-goog-api-key, or a bearer token. */
 export function keyHeaders(base: string, key: string | null | undefined): Record<string, string> {
 	const k = key?.trim();
 	if (isAnthropic(base)) return { ...(k ? { 'x-api-key': k } : {}), 'anthropic-version': ANTHROPIC_VERSION };
+	if (isGoogleNative(base)) return k ? { 'x-goog-api-key': k } : {};
 	return k ? { Authorization: `Bearer ${k}` } : {};
 }
 
@@ -459,12 +483,53 @@ export function anthropicCompletionOf(body: string): { content: string; finishRe
 	};
 }
 
-/** The model ids in a `/models` answer (OpenAI's form, which llama-server, Ollama and LM Studio follow), sorted. */
+/**
+ * A request in Google's Interactions form. The answer is held to our schema by `response_format` (JSON by a schema, no
+ * strict mode to choose). `store: false`: Interactions keeps what is sent unless told not to (55 days on the paid tier).
+ * No temperature (Gemini 3 wants its default, as in the OpenAI form) and nothing on thinking: the level stays the model's.
+ */
+export function googleBody(request: ChatRequest, model: string, profile: RequestProfile = newProfile()): string {
+	return JSON.stringify({
+		model: model.trim(),
+		input: request.user,
+		system_instruction: request.system,
+		store: false,
+		response_format: { type: 'text', mime_type: 'application/json', schema: request.schema },
+		generation_config: { max_output_tokens: request.maxTokens + (profile.thinks ? THINKING_ROOM : 0) },
+	});
+}
+
+/**
+ * The answer of an Interactions request: the text of its model output, why it stopped ("incomplete" is the length limit:
+ * "e.g. hitting max_tokens", Google's reference), the model. Throws when it is not one.
+ */
+export function googleCompletionOf(body: string): { content: string; finishReason: string | null; model: string | null } {
+	const data = JSON.parse(body) as { model?: unknown; status?: unknown; steps?: { type?: unknown; content?: { type?: unknown; text?: unknown }[] }[] };
+	const outputs = (Array.isArray(data.steps) ? data.steps : []).filter((s) => s.type === 'model_output');
+	const texts = outputs.flatMap((s) => (Array.isArray(s.content) ? s.content : [])).flatMap((c) => (c.type === 'text' && typeof c.text === 'string' ? [c.text] : []));
+	if (texts.length === 0) throw new Error('The answer has no message.');
+	return {
+		content: texts.join(''),
+		finishReason: data.status === 'incomplete' ? 'length' : typeof data.status === 'string' ? data.status : null,
+		model: typeof data.model === 'string' && data.model.trim() !== '' ? data.model.trim().replace(/^models\//, '') : null,
+	};
+}
+
+/** The answer text of a request to this address, in the form its server answers in. */
+export function completionFor(base: string, body: string): { content: string; finishReason: string | null; model: string | null } {
+	if (isAnthropic(base)) return anthropicCompletionOf(body);
+	if (isGoogleNative(base)) return googleCompletionOf(body);
+	return completionOf(body);
+}
+
+/** The model ids in a `/models` answer (OpenAI's form, which llama-server, Ollama and LM Studio follow; Google's own), sorted. */
 export function parseModels(body: string): string[] {
-	const data = JSON.parse(body) as { data?: { id?: unknown }[] };
-	if (!Array.isArray(data.data)) throw new Error('The answer has no list of models.');
+	const data = JSON.parse(body) as { data?: { id?: unknown }[]; models?: { name?: unknown }[] };
+	// Google's own list has `models` with `name`; its OpenAI form `data` with `id`.
+	const ids = Array.isArray(data.data) ? data.data.map((m) => m.id) : Array.isArray(data.models) ? data.models.map((m) => m.name) : null;
+	if (ids === null) throw new Error('The answer has no list of models.');
 	// Google lists "models/gemini-2.5-flash"; its chat takes the name with or without "models/".
-	return [...new Set(data.data.flatMap((m) => (typeof m.id === 'string' && m.id.trim() !== '' ? [m.id.trim().replace(/^models\//, '')] : [])))].sort((a, b) => a.localeCompare(b));
+	return [...new Set(ids.flatMap((id) => (typeof id === 'string' && id.trim() !== '' ? [id.trim().replace(/^models\//, '')] : [])))].sort((a, b) => a.localeCompare(b));
 }
 
 // Models a server lists that do not write text for a prompt (embeddings, OCR, speech, rerankers) or that would translate
@@ -653,14 +718,15 @@ export class ModelClient {
 		// A pasted key can bring a space, a line break or a byte order mark (Notepad saves one), and a header cannot carry them.
 		const headers = keyHeaders(config.url, config.apiKey);
 		const anthropic = isAnthropic(config.url);
-		const url = anthropic ? `${anthropicBase(config.url)}/messages` : chatUrl(config.url);
+		const google = isGoogleNative(config.url);
+		const url = requestUrl(config.url);
 		const profileKey = `${url}|${config.model.trim()}`;
 		const profile = this.profiles.get(profileKey);
 		let response: Awaited<ReturnType<PostJson>> | undefined;
 		try {
 			// A server that refuses one of our fields says which in its 400 answer: leave it out and ask again (a few times at most).
 			for (let attempt = 0; attempt < 4; attempt++) {
-				const body = anthropic ? anthropicBody(request, config.model, profile) : chatBody(request, config.model, profile);
+				const body = anthropic ? anthropicBody(request, config.model, profile) : google ? googleBody(request, config.model, profile) : chatBody(request, config.model, profile);
 				response = await this.post(url, body, { headers, timeoutMs: TIMEOUT_MS });
 				if (response.status === 400 && adaptProfile(profile, response.text)) {
 					this.profiles.changed();
@@ -689,7 +755,7 @@ export class ModelClient {
 		}
 		let completion: ReturnType<typeof completionOf>;
 		try {
-			completion = anthropic ? anthropicCompletionOf(response.text) : completionOf(response.text);
+			completion = completionFor(config.url, response.text);
 		} catch (error) {
 			throw new ModelError(`${DEFAULT_SOURCE} gave an answer that could not be read: ${error instanceof Error ? error.message : String(error)}`, true);
 		}
@@ -728,18 +794,35 @@ export class LlmGrammarChecker implements GrammarChecker {
 		this.cache = new AnswerCache<GrammarIssue[]>((text, language) => this.proofread(text, language));
 	}
 
+	/**
+	 * An answer that would show nothing of the paragraph is asked for once more: one cut off at the length limit, one that
+	 * cannot be read, or one that rewrote the paragraph. Gemini 3.5 Flash-Lite on a sentence with seven display formulas
+	 * (2026-10-11) garbled the LaTeX and lost its fix of the prose that way in 3 answers of 6: two dropped as rewrites, one cut
+	 * off. Once only: a model that really rewrites would do it again. Any other answer is the first one, as before.
+	 */
 	private async proofread(text: string, language: string): Promise<GrammarIssue[]> {
 		const request = proofreadRequest(text, language, this.adjustInstructions);
 		try {
-			const content = await this.client.chat(request);
-			let issues: GrammarIssue[];
-			try {
-				issues = issuesFrom(text, content, language, this.client.source);
-			} catch (error) {
-				throw new ModelError(`${DEFAULT_SOURCE} gave an answer that could not be read: ${error instanceof Error ? error.message : String(error)}`, true);
+			for (let attempt = 1; ; attempt++) {
+				const last = attempt === 2;
+				let content: string;
+				try {
+					content = await this.client.chat(request);
+				} catch (error) {
+					if (!last && isFinal(error)) continue;
+					throw error;
+				}
+				if (!last && rewrote(text, content)) continue;
+				let issues: GrammarIssue[];
+				try {
+					issues = issuesFrom(text, content, language, this.client.source);
+				} catch (error) {
+					if (!last) continue;
+					throw new ModelError(`${DEFAULT_SOURCE} gave an answer that could not be read: ${error instanceof Error ? error.message : String(error)}`, true);
+				}
+				this.lastError = null;
+				return issues;
 			}
-			this.lastError = null;
-			return issues;
 		} catch (error) {
 			this.lastError = error instanceof Error ? error.message : String(error);
 			throw error;

@@ -49,6 +49,8 @@ export interface BlueProofSettings {
 	skipLinks: boolean;
 
 	debug: boolean;
+	/** The settings were moved once from Google's OpenAI form to its own API (0.4.12); later choices of that form stay. */
+	googleOwnApi: boolean;
 }
 
 
@@ -57,18 +59,24 @@ export interface BlueProofSettings {
  * Model servers the address can be chosen from (their documented default addresses, checked 2026-10-05), or another one.
  * OpenAI's API sends the text of the paragraphs to OpenAI.
  */
+const GOOGLE_OWN_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const GOOGLE_OPENAI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+
 export const MODEL_SERVERS: { id: string; name: string; url: string }[] = [
 	{ id: 'llamacpp', name: 'llama.cpp (llama-server)', url: 'http://127.0.0.1:8080/v1' },
 	{ id: 'ollama', name: 'Ollama', url: 'http://127.0.0.1:11434/v1' },
 	{ id: 'lmstudio', name: 'LM Studio', url: 'http://127.0.0.1:1234/v1' },
 	{ id: 'openai', name: 'OpenAI (cloud: the text leaves your computer)', url: 'https://api.openai.com/v1' },
 	{ id: 'anthropic', name: 'Anthropic Claude (cloud: the text leaves your computer)', url: 'https://api.anthropic.com/v1' },
-	// Google's Gemini API in OpenAI's form: the same requests as OpenAI's, at its own address.
-	{ id: 'gemini', name: 'Google Gemini (cloud: the text leaves your computer)', url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
+	// Google's own API (Interactions), from 0.4.12: gemini-3.5-flash-lite lost 11 errors of a long Russian paragraph at once
+	// (a piece answered with no change) in 2 runs of 3 through the OpenAI form, in none of 3 through this (2026-10-12).
+	{ id: 'gemini', name: 'Google Gemini (cloud: the text leaves your computer)', url: GOOGLE_OWN_URL },
+	// Google's Gemini API in OpenAI's form: the same requests as OpenAI's, at its own address. Kept to fall back on.
+	{ id: 'gemini-openai', name: 'Google Gemini, OpenAI form (a fallback; cloud)', url: GOOGLE_OPENAI_URL },
 ];
 
 /** A server in the cloud: it needs a key and a model chosen (it has no default one). */
-export const isCloudServer = (url: string): boolean => ['openai', 'anthropic', 'gemini'].includes(modelServerOf(url));
+export const isCloudServer = (url: string): boolean => ['openai', 'anthropic', 'gemini', 'gemini-openai'].includes(modelServerOf(url));
 
 /** An address as a key: `localhost` and `127.0.0.1`, a final slash and letter case do not make two servers. */
 export const serverKey = (url: string): string => url.trim().replace(/\/+$/, '').toLowerCase().replace('//localhost:', '//127.0.0.1:');
@@ -175,6 +183,7 @@ export const DEFAULT_SETTINGS: BlueProofSettings = {
 	skipLinks: true,
 
 	debug: false,
+	googleOwnApi: true,
 };
 
 /** Returns an error message, or undefined when `value` is an http(s) address. */
@@ -276,6 +285,8 @@ export function normalizeSettings(raw: unknown): BlueProofSettings {
 		result.modelApiKeySecrets[openai] ??= result.modelApiKeySecret;
 		result.modelApiKeySecret = '';
 	}
+	// Settings stored before 0.4.12 have no such field: moved once.
+	if (stored.googleOwnApi !== true) moveToGoogleOwnApi(result);
 	// An array of known keys; anything else (an older version stored free text) gives the default.
 	const focus = stored.styleFocus;
 	result.styleFocus = Array.isArray(focus)
@@ -287,6 +298,24 @@ export function normalizeSettings(raw: unknown): BlueProofSettings {
 		result.styleOwnInstructionOn = true;
 	}
 	return result;
+}
+
+/**
+ * Once, from 0.4.12: Google's OpenAI form becomes its own API, which found more (MODEL_SERVERS). The current address, or
+ * the model and key kept for that address, go to the new one; the form stays chosen when the user picks it again later.
+ */
+function moveToGoogleOwnApi(s: BlueProofSettings): void {
+	s.googleOwnApi = true;
+	const from = serverKey(GOOGLE_OPENAI_URL);
+	const to = serverKey(GOOGLE_OWN_URL);
+	if (serverKey(s.modelUrl) === from) {
+		s.modelUrl = GOOGLE_OWN_URL;
+		return;
+	}
+	for (const kept of [s.modelNames, s.modelApiKeySecrets]) {
+		if (kept[from] !== undefined && kept[to] === undefined) kept[to] = kept[from];
+		delete kept[from];
+	}
 }
 
 /** The text values of a stored object, by key; anything else is dropped. */

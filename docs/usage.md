@@ -71,5 +71,6 @@ address, an API key for a cloud server, the model); **Skipped text**;
 
 - One language per paragraph.
 - A language model can be wrong or miss errors. It is told to fix only spelling, grammar and punctuation; answers that
-  rewrite the text, translate it or change numbers are dropped.
+  rewrite the text, translate it or change numbers are dropped. An answer dropped whole, or cut off, is asked for once
+  more.
 - A long paragraph goes to the model in pieces of whole sentences.

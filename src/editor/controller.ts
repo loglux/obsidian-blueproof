@@ -103,9 +103,12 @@ export class UnderlineController {
 			if (found === null) continue; // not known yet: its old underlines stay, an answer will call noteChange
 			const marks: Mark[] = outsideFormulas(found, [...paragraph.math, ...(this.options.skipped?.(paragraph) ?? [])]).map((issue) => {
 				const start = from + issue.offset;
-				// A finding of no length (a missing comma) is underlined on the character after it.
+				// A finding of no length (a missing comma) is underlined on the character after it, and that character is
+				// kept in its fixes: before, the fix took its place ("$a$ that" → "$a$,that", 2026-10-12).
 				const end = Math.min(to, start + Math.max(1, issue.length));
-				return { issue, from: start, to: end, wrong: doc.sliceString(start, end) };
+				const wrong = doc.sliceString(start, end);
+				const fixed = issue.length === 0 && wrong !== '' ? { ...issue, replacements: issue.replacements.map((r) => r + wrong) } : issue;
+				return { issue: fixed, from: start, to: end, wrong };
 			});
 			effects.push(setProblems.of({ from, to, marks }));
 		}

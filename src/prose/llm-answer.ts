@@ -2,6 +2,7 @@
 // (LlmGrammar.cs). The model is asked for the corrected text; what changed is found by comparing the texts, so positions
 // never depend on the model counting characters. No `obsidian` import.
 import type { GrammarIssue } from '../checkers/types';
+import { wholeFormulas } from './math';
 import { changedShare, changes, originalIn, type TextChange } from './text-diff';
 
 /** More than this share of the text changed: the model rewrote the paragraph, it did not correct it. */
@@ -158,14 +159,31 @@ export function issuesFrom(text: string, answer: string, language: string, sourc
 		}
 
 		const narrow = offFormula(wrong, fixes);
-		result.push({
-			offset: change.offset + narrow.before,
-			length: change.length - narrow.before - narrow.after,
-			message,
-			replacements: fixes.map((f) => f.slice(narrow.before, f.length - narrow.after)),
-			rule: `LLM:${wrong}→${change.replacement}`,
-			source,
-		});
+		const offset = change.offset + narrow.before;
+		const length = change.length - narrow.before - narrow.after;
+		const marks = fixes.map((f) => f.slice(narrow.before, f.length - narrow.after));
+		const rule = `LLM:${wrong}→${change.replacement}`;
+		// A mark put in next to a formula: nothing of the text to underline (an underline of no length is drawn on the
+		// character after it, a space) and "Possibly: $," in the popup, the "$" of the formula's edge with the comma after it
+		// (gemini-3.5-flash-lite, MU123, 2026-10-12). The whole formula is the finding, kept as it is in every fix.
+		const formula = length === 0 ? wholeFormulas(text).find((f) => f.start + f.length === offset || f.start === offset) : undefined;
+		if (formula) {
+			const it = text.slice(formula.start, formula.start + formula.length);
+			const replacements = marks.map((m) => (formula.start === offset ? m + it : it + m));
+			result.push({
+				offset: formula.start,
+				length: formula.length,
+				message: note && note.explanation.length > 0 ? note.explanation : possibly(replacements[0]!, it),
+				replacements,
+				rule,
+				source,
+				aroundFormula: true,
+			});
+			continue;
+		}
+		// Said with the fix as cut off the formula: "Possibly: , which", not "Possibly: $, which" (the same model, 4 of 5).
+		const said = note && note.explanation.length > 0 ? message : possibly(marks[0]!, text.slice(offset, offset + length));
+		result.push({ offset, length, message: said, replacements: marks, rule, source });
 	}
 
 	// An error the model listed but did not put into its corrected text (Gemma 3 12B: "The survey were" → "was" in the list,

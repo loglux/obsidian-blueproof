@@ -3,7 +3,9 @@
 // thin DOM part, built with Obsidian's helpers (`createDiv`...), no `innerHTML`.
 import { type EditorState, type Extension, StateEffect, StateField, type TransactionSpec } from '@codemirror/state';
 import { type EditorView, hoverTooltip, showTooltip, type Tooltip } from '@codemirror/view';
+import { finishRenderMath, renderMath } from 'obsidian';
 import { findingKey } from '../checkers/types';
+import { wholeFormulas } from '../prose/math';
 import { wordOfRule } from '../spelling/checker';
 import { allMarks, clearProblems, type Mark, marksAt } from './problems';
 
@@ -63,7 +65,8 @@ function render(view: EditorView, marks: readonly Mark[], actions: PopupActions)
 		if (issue.replacements.length > 0) {
 			const fixes = item.createDiv({ cls: 'blueproof-tip-fixes' });
 			for (const replacement of issue.replacements) {
-				const button = fixes.createEl('button', { cls: 'blueproof-tip-fix mod-cta', text: replacement === '' ? '(remove)' : replacement });
+				const button = fixes.createEl('button', { cls: 'blueproof-tip-fix mod-cta' });
+				withFormulas(button, replacement === '' ? '(remove)' : replacement);
 				button.setAttr('aria-label', `Replace "${mark.wrong}" with "${replacement}"`);
 				button.addEventListener('click', () => {
 					const spec = fixSpec(view.state, mark, replacement);
@@ -77,7 +80,7 @@ function render(view: EditorView, marks: readonly Mark[], actions: PopupActions)
 			}
 		}
 
-		item.createDiv({ cls: 'blueproof-tip-message', text: issue.message });
+		withFormulas(item.createDiv({ cls: 'blueproof-tip-message' }), issue.message);
 		if (issue.replacements.length === 0) item.createDiv({ cls: 'blueproof-tip-nofix', text: 'No fix offered: the checker only names the problem.' });
 
 		const foot = item.createDiv({ cls: 'blueproof-tip-foot' });
@@ -108,6 +111,24 @@ function render(view: EditorView, marks: readonly Mark[], actions: PopupActions)
 		}
 	}
 	return root;
+}
+
+/**
+ * Text with its whole formulas drawn as Obsidian draws them in a note: a fix next to a formula holds the formula
+ * ("$x^2-x-6=0$,"), and its dollars and LaTeX read worse than the formula. Drawn by Obsidian's own MathJax.
+ */
+function withFormulas(el: HTMLElement, text: string): void {
+	let at = 0;
+	for (const f of wholeFormulas(text)) {
+		el.appendText(text.slice(at, f.start));
+		const source = text.slice(f.start, f.start + f.length);
+		const display = source.startsWith('$$') || source.startsWith('\\[');
+		const strip = display || source.startsWith('\\(') ? 2 : 1;
+		el.appendChild(renderMath(source.slice(strip, source.length - strip), display));
+		at = f.start + f.length;
+	}
+	el.appendText(text.slice(at));
+	if (at > 0) void finishRenderMath();
 }
 
 /**

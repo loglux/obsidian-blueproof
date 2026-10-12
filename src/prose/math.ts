@@ -42,6 +42,22 @@ export function mathIn(line: string, from = 0): Span[] {
 	return Array.from(line.matchAll(rx), (m) => ({ start: m.index, length: m[0].length }));
 }
 
+/**
+ * The formulas of a text that are whole on their line: `$…$`, `\(…\)`, and `$$…$$` or `\[…\]` closed where they open.
+ * Not the lines of a display formula that runs over several.
+ */
+export function wholeFormulas(text: string): Span[] {
+	const spans: Span[] = [];
+	let at = 0;
+	for (const line of text.split('\n')) {
+		for (const m of mathIn(line)) {
+			if (openDisplay(line.slice(m.start, m.start + m.length)) === null) spans.push({ start: at + m.start, length: m.length });
+		}
+		at += line.length + 1;
+	}
+	return spans;
+}
+
 /** Whether a `$$` formula that was opened on this line is closed on it. */
 export function closesOnItsLine(formula: string): boolean {
 	return formula.length >= 4 && formula.endsWith('$$');
@@ -59,9 +75,15 @@ export function touches(spans: readonly Span[], offset: number, length: number):
  * punctuation should be inside the math expression", 3 of 3 on 2026-10-09); the half in the formula is dropped here,
  * and the half left, the full stop after it removed, was shown with no explanation and is as wrong.
  */
-export function outsideFormulas<T extends Placed & { replacements?: readonly string[] }>(items: readonly T[], formulas: readonly Span[]): T[] {
+export function outsideFormulas<T extends Placed & { replacements?: readonly string[]; aroundFormula?: boolean }>(
+	items: readonly T[],
+	formulas: readonly Span[],
+): T[] {
 	if (formulas.length === 0) return [...items];
-	const inside = items.filter((i) => touches(formulas, i.offset, i.length));
+	// A mark next to a formula, the formula taken whole into the finding so that it can be seen (wholeFormulas): kept when it
+	// is exactly one of the formulas here.
+	const around = (i: T): boolean => i.aroundFormula === true && formulas.some((f) => f.start === i.offset && f.length === i.length);
+	const inside = items.filter((i) => !around(i) && touches(formulas, i.offset, i.length));
 	const intoFormula = (i: T): boolean =>
 		i.length > 0 &&
 		i.length <= 2 &&

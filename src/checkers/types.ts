@@ -24,6 +24,11 @@ export interface GrammarIssue {
 	source: string;
 	/** The rule's category where the checker has one (LanguageTool: `PUNCTUATION`, `GRAMMAR`...), for the user to switch off by. */
 	category?: string;
+	/**
+	 * The finding is a whole formula with a mark put next to it ("$a=b$" → "$a=b$,"): every fix keeps the formula as it is.
+	 * Kept by `outsideFormulas`, which drops anything else that touches a formula.
+	 */
+	aroundFormula?: boolean;
 }
 
 /**

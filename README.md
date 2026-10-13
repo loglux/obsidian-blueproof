@@ -1,21 +1,28 @@
 
 # BlueProof
 
-Spelling and grammar checking for Obsidian by a language model, on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini). It catches the errors
-rule-based checkers miss, as you write. Desktop only.
+Spelling and grammar checking for Obsidian by a language model that reads the whole sentence: it catches the errors
+rule-based checkers miss, leaves your LaTeX formulas alone, and checks each paragraph in its own language. The model
+runs on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini). Desktop only.
 
 ![A note with underlined errors and the popup with fixes](docs/images/underlines.png)
 
 ## Features
 
-- **Finds more.** A language model reads the whole sentence, and the one before it: "Mary opened the book. Then he wrote
-  the answer." On our test sentences models found far more errors than LanguageTool.
-- **Underlines as you write**: red for spelling, blue for grammar. Click one for the fixes.
-- **Spelling** with Windows' own checker or Hunspell dictionaries, plus your own word lists kept as notes.
+- **Reads for meaning.** The model checks each sentence against the ones before it: "Maria presented the findings.
+  Afterwards he answered questions." On our test sentences models found far more errors than LanguageTool.
+- **Math stays out of the way.** A formula in the middle of a sentence confuses most checkers. BlueProof keeps
+  formulas out of the check, never changes them, and still checks the sentence around them.
 - **Many languages**, a different one in each paragraph.
-- **Never slows your typing**: checks run after a pause, only on what changed.
-- **Leaves code, links and math alone**, LaTeX formulas included, while the sentence around them is still checked.
-- **Style suggestions** on a command; nothing in your note changes until you pick a fix.
+- **Underlines as you write**: red for spelling, blue for grammar. Click one for the fixes; nothing in your note changes
+  until you pick one.
+- **Never slows your typing**: checks run after a pause, only on what changed. Long paragraphs are cut at sentence ends,
+  each piece with the sentence before it for context: as many errors found, two to four times sooner.
+- **Few false alarms.** A fix that rewrites the sentence, translates a word or changes a number is thrown away.
+- **Spelling** with Windows' own checker or Hunspell dictionaries, plus your own word lists kept as notes.
+- **Style suggestions** on a command.
+
+![Errors around formulas underlined, the formulas untouched](docs/images/formulas.png)
 
 A spelling checker sees one word; the model reads the sentence. Here the dictionary offers *don't*, and the model,
 seeing *She*, gives *doesn't* and says why:
@@ -32,74 +39,68 @@ into `<your vault>/.obsidian/plugins/blueproof/`, and turn on **BlueProof** unde
 
 ## Setup
 
-**Spelling** works at once on Windows (Windows' own spell checker), in the languages installed in Windows: a note in
-American English needs English (United States) there, not only English (United Kingdom); **Settings → BlueProof → Spelling** lists the ones Windows has. On Linux and macOS, download a
-dictionary for your language in **Settings → BlueProof → Spelling → Manage…** (the system's Hunspell dictionaries count
-too). (Not tested on macOS yet.) A language with no dictionary gets ⚠ in the status bar.
+### Spelling
+
+**Windows**: works at once, with Windows' own spell checker, in the languages installed in Windows. A note in American
+English needs English (United States) there, not only English (United Kingdom); **Settings → BlueProof → Spelling**
+lists the ones Windows has.
+
+**Linux and macOS**: download a dictionary for your language in **Settings → BlueProof → Spelling → Manage…** (the
+system's Hunspell dictionaries count too). Not tested on macOS yet.
+
+A language with no dictionary gets ⚠ in the status bar.
 
 While BlueProof checks spelling, Obsidian's own spellcheck (**Settings → Editor → Spellcheck**) is kept out of the
 note's text, so a word is not underlined twice. That setting is not changed: turn BlueProof's spelling, checking while
-typing or the plugin off, or mark a note `blueproof: off`, and Obsidian's is back; in a note with a language BlueProof
-has no dictionary for (⚠), Obsidian's checks it meanwhile. It still checks the note's title and properties.
+typing or the plugin off, or mark a note `blueproof: off`, and Obsidian's is back. Obsidian's still checks a note in a
+language BlueProof has no dictionary for (⚠), and the note's title and properties.
 
-**Grammar** needs a language model. Choose where it runs:
+### Grammar
 
-- **OpenAI**, **Anthropic (Claude)** or **Google Gemini**: works on any computer; paid per use (Gemini has a free tier
-  with a daily limit); the paragraphs being checked go to that company. How the cloud models compare: [docs/servers.md](docs/servers.md).
-- **A model on your own computer**: free and private; needs a graphics card with about 8–12 GB of memory.
+Grammar needs a language model. Choose where it runs:
 
-### OpenAI
+- **In the cloud: OpenAI, Anthropic (Claude) or Google Gemini.** Works on any computer; paid per use (Gemini has a free
+  tier with a daily limit); the paragraphs being checked go to that company.
+- **On your own computer: Ollama, llama.cpp or LM Studio.** Free and private; needs a graphics card with about 8–12 GB
+  of memory.
 
-1. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
-2. **Settings → BlueProof → Model server**: choose **OpenAI**, paste the key, pick a model (`gpt-5.4-mini`: as accurate
-   as the best and the fastest in our tests).
-3. Press **Check** at the top of the settings.
+How the models compare, and which suits which language: [docs/servers.md](docs/servers.md).
 
-![Settings with OpenAI](docs/images/settings-openai.png)
+**OpenAI**: create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys); in
+**Settings → BlueProof → Model server** choose **OpenAI**, paste the key, pick a model (`gpt-5.4-mini`: as accurate as
+the best and the fastest in our tests), and press **Check** at the top of the settings.
 
-### Anthropic (Claude)
+**Anthropic (Claude)**: create an API key in the [Claude Console](https://console.anthropic.com/settings/keys); choose
+**Anthropic Claude**, paste the key, pick a model (`claude-sonnet-5-5` found the most in our tests, `claude-haiku-5-5`
+made no false finding and is quicker), and press **Check**.
 
-1. Create an API key in the [Claude Console](https://console.anthropic.com/settings/keys).
-2. **Settings → BlueProof → Model server**: choose **Anthropic Claude**, paste the key, pick a model:
-   `claude-sonnet-5-5` found the most in our tests, `claude-haiku-5-5` made no false finding and is quicker.
-3. Press **Check** at the top of the settings.
+**Google Gemini**: create an API key in [Google AI Studio](https://aistudio.google.com/apikey) (free, with daily limits;
+far higher ones with billing set up); choose **Google Gemini**, paste the key, pick a model, and press **Check**. Measured
+2026-10-11 (Google's models change): `gemini-3.8-flash` found the most of all the cloud models in our tests, slower on
+long paragraphs; `gemini-3.5-flash-lite` is the fastest and cheapest, and the one a free key allows most of (500
+requests a day, the Flash models 20). Pro and Gemma are not worth it: [docs/servers.md](docs/servers.md). On the free tier Google may use what is sent to improve its products; with
+billing set up it does not.
 
-### Google Gemini
+![The model server settings with Google Gemini](docs/images/settings.png)
 
-1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey) (free, with daily limits; far higher
-   ones with billing set up).
-2. **Settings → BlueProof → Model server**: choose **Google Gemini**, paste the key, pick a model (measured 2026-10-11;
-   Google's models change): `gemini-3.8-flash` found the most of all the cloud models in our tests, slower on long
-   paragraphs; `gemini-3.5-flash-lite` is the fastest and cheapest, and the one a free key allows most of (500 requests
-   a day, the Flash models 20). Pro and Gemma are not worth it: [docs/servers.md](docs/servers.md). On the free tier
-   Google may use what is sent to improve its products; with billing set up it does not.
-3. Press **Check** at the top of the settings.
+**Ollama**: install [Ollama](https://ollama.com) and run `ollama pull qwen3:14b`; choose **Ollama**, pick `qwen3:14b`
+from the list, and press **Check**.
 
-### Ollama
+<details>
+<summary><b>llama.cpp</b> and <b>LM Studio</b></summary>
 
-1. Install [Ollama](https://ollama.com) and run `ollama pull qwen3:14b`.
-2. **Model server**: choose **Ollama**, pick `qwen3:14b` from the list.
-3. Press **Check**.
+**llama.cpp**: download [llama.cpp](https://github.com/ggml-org/llama.cpp/releases) for your system and a model file
+(`.gguf`, e.g. Qwen3 14B `Q4_K_M`) from Hugging Face; start it with
+`llama-server -m Qwen_Qwen3-14B-Q4_K_M.gguf --port 8080 -ngl 99`; choose **llama.cpp** and press **Check**.
 
-![Settings with Ollama](docs/images/settings-ollama.png)
+**LM Studio** (not tested yet): in [LM Studio](https://lmstudio.ai), download a model, load it and start the local
+server; choose **LM Studio**, pick the model and press **Check**. It should work like the others, but we have not tried
+it yet: treat it as experimental.
 
-### llama.cpp
+</details>
 
-1. Download [llama.cpp](https://github.com/ggml-org/llama.cpp/releases) for your system and a model file (`.gguf`,
-   e.g. Qwen3 14B `Q4_K_M`) from Hugging Face.
-2. Start it: `llama-server -m Qwen_Qwen3-14B-Q4_K_M.gguf --port 8080 -ngl 99`
-3. **Model server**: choose **llama.cpp**, press **Check**.
-
-### LM Studio (not tested yet)
-
-1. In [LM Studio](https://lmstudio.ai), download a model, load it and start the local server.
-2. **Model server**: choose **LM Studio**, pick the model, press **Check**.
-
-It should work like the others, but we have not tried it yet: treat it as experimental.
-
-A server on another computer, and which model suits which language: [docs/servers.md](docs/servers.md).
-
-The first check after a local model starts can take a minute while it loads.
+A local model can take a minute to load on the first check after it starts. A server on another computer:
+[docs/servers.md](docs/servers.md).
 
 ## Using it
 
@@ -147,17 +148,6 @@ eigenvalue eigenvector
 **Find unknown words in my notes** (a command) lists the unknown words of your vault, most
 frequent first, so you can add the right ones in one go. Examples to start from:
 [docs/dictionaries](docs/dictionaries).
-
-## Why BlueProof
-
-- **It reads for meaning.** Rule-based checkers catch typos and common slips but miss errors that need the sentence
-  understood. The model is also asked to check each sentence against the ones before it: pronouns, gender, number,
-  tenses.
-- **Formulas stay out of the way.** A LaTeX formula in the middle of a sentence usually confuses a checker. BlueProof
-  keeps formulas out of the check and still checks the sentence around them.
-- **Fewer false alarms.** A fix that rewrites the sentence, translates a word or changes a number is thrown away.
-- **Long paragraphs are cut at sentence ends**, each piece with the sentence before it for context: as many errors found
-  as sending the whole paragraph, two to four times sooner.
 
 ## Privacy
 

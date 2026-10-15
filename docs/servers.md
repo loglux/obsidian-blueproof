@@ -12,7 +12,7 @@ After any of these: **Settings → BlueProof → Status → Check** says whether
 | You have | Grammar by | Notes |
 |---|---|---|
 | A graphics card with 8–12 GB | a local model (llama.cpp or Ollama) | The text stays on your computer. |
-| No graphics card, but you accept the cloud | OpenAI, Anthropic or Google Gemini | The paragraphs being checked leave your computer; you pay per use (cost not measured). |
+| No graphics card, but you accept the cloud | OpenAI, Anthropic, Google Gemini or DeepSeek | The paragraphs being checked leave your computer; you pay per use (cost not measured). |
 | No graphics card, the cloud, and no payment | Google Gemini's free tier (Flash-Lite) | A few hundred paragraphs a day; Google may use what is sent on the free tier to improve its products. |
 | No graphics card, and no cloud | — | Spelling still works; grammar needs a model. A small model on the processor was not tried. |
 
@@ -36,7 +36,9 @@ pairs, long paragraphs and formulas, Russian and English; 67 correct texts to co
 | Claude Sonnet 5.5 (Anthropic) | 198 | 198 | 1 | 3 | 2.0 s | 15.7 s |
 | gpt-6-sol (OpenAI) | 198 | 198 | 1 | 5 | 1.4 s | 10.1 s |
 | Claude Haiku 5.5 (Anthropic) | 197 | 195 | 0 | 3 | 2.0 s | 16.8 s |
+| DeepSeek Flash (2026-10-16) | 196 | 195 | 2 | 2 | 1.0 s | 7.6 s |
 | gpt-5.6-luna (OpenAI) | 196 | 194 | 4 | 8 | 1.3 s | 11.1 s |
+| DeepSeek V4 Pro (2026-10-16) | 195 | 193 | 2 | 3 | 1.4 s | 10.5 s |
 | Gemini 3.5 Flash-Lite (Google) | 191 | 186 | 4 | 9 | 0.6 s | 3.9 s |
 | gpt-5.4-mini (OpenAI) | 196 | 193 | 5 | 8 | 0.9 s | 6.6 s |
 | Claude Haiku 4.5 (Anthropic) | 196 | 190 | 3 | 6 | 1.4 s | 13.5 s |
@@ -47,6 +49,11 @@ answers, which cannot be turned off. gpt-5.5, Sonnet 5.5 and gpt-6-sol come next
 the last two), then Haiku 5.5 with none, at about a twentieth of Sonnet's price; Gemini 3.5 Flash-Lite is the fastest
 and finds a little fewer than gpt-5.4-mini. The Gemini models were run on 2026-10-11 with a paid key; prices were not compared.
 The 6 errors of one set (`en-labels`) are not counted in any row.
+
+The DeepSeek rows are of 2026-10-16, one run each, asked as the plugin asks them; their times are the mean per text over
+the sets of short texts and over the long paragraphs (Gemini 3.5 Flash-Lite, counted the same way on 2026-10-12: 0.7 s and
+4.8 to 6.2 s). DeepSeek Flash is about as good as gpt-5.4-mini with fewer false findings; V4 Pro found no more and is
+slower (22 s a long paragraph in another run the same night).
 
 The Claude rows are of 2026-10-11, asked as the plugin asks them since: by Anthropic's own schema format, in which they
 may think before answering. Asked the way before (a tool they were made to call), Haiku 5.5 found 186 (183 right, no
@@ -166,6 +173,30 @@ temperature and in pieces of 600 characters too, and gave no answer for 43 of 27
 them. Google also blocks an answer now and then as "recitation" (copying a text): the answer holds the corrected text,
 nearly the same as the text sent; the plugin shows nothing for that paragraph.
 The paragraphs being checked are sent to Google.
+
+## DeepSeek
+
+Tried: yes, `deepseek-flash` and `deepseek-v4-pro` (2026-10-16; results above).
+
+1. Create an API key on [DeepSeek's platform](https://platform.deepseek.com/api_keys) and top up the balance (the API is
+   paid per use).
+2. In the settings: Server **DeepSeek**, the key under **API key** (kept in Obsidian's secret storage and sent only to
+   DeepSeek), then **choose a model** from the list the server gives.
+
+DeepSeek's API cannot hold an answer to a schema the way OpenAI's does, but it can hold a function call to one: its
+"strict mode (Beta)", at its own address `https://api.deepseek.com/beta`
+([its documentation](https://api-docs.deepseek.com/guides/tool_calls), read 2026-10-16). The plugin asks that way; should
+that address stop answering, it asks for plain JSON at the usual one. Thinking is turned off (`reasoning_effort: none`).
+Its prices are half outside the peak hours, 01:00–04:00 and 06:00–10:00 UTC on weekdays
+([pricing](https://api-docs.deepseek.com/quick_start/pricing), read 2026-10-15).
+
+The paragraphs being checked are sent to DeepSeek. Its [privacy policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html) (last updated 2026-02-10, read
+2026-10-16) says: "we directly collect, process and store your Personal Data in People's Republic of China", and lists among
+the uses "to train and improve our technology, such as our machine learning models and algorithms". Among the rights a user
+may have "depending on where you live" it names "the right to opt-out of using your Personal Data for training our models
+or optimizing our technologies", asked for by email to privacy@deepseek.com. The policy does not treat what is sent through
+the API apart from DeepSeek's apps, and its [platform terms](https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html)
+(effective 2026-04-29) say nothing more on it.
 
 ## A server on another computer
 

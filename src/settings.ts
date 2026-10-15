@@ -73,10 +73,12 @@ export const MODEL_SERVERS: { id: string; name: string; url: string }[] = [
 	{ id: 'gemini', name: 'Google Gemini (cloud: the text leaves your computer)', url: GOOGLE_OWN_URL },
 	// Google's Gemini API in OpenAI's form: the same requests as OpenAI's, at its own address. Kept to fall back on.
 	{ id: 'gemini-openai', name: 'Google Gemini, OpenAI form (a fallback; cloud)', url: GOOGLE_OPENAI_URL },
+	// DeepSeek's API in OpenAI's form (api-docs.deepseek.com, read 2026-10-15); a schema is refused, JSON asked for (llm.ts).
+	{ id: 'deepseek', name: 'DeepSeek (cloud: the text leaves your computer)', url: 'https://api.deepseek.com/v1' },
 ];
 
 /** A server in the cloud: it needs a key and a model chosen (it has no default one). */
-export const isCloudServer = (url: string): boolean => ['openai', 'anthropic', 'gemini', 'gemini-openai'].includes(modelServerOf(url));
+export const isCloudServer = (url: string): boolean => ['openai', 'anthropic', 'gemini', 'gemini-openai', 'deepseek'].includes(modelServerOf(url));
 
 /** An address as a key: `localhost` and `127.0.0.1`, a final slash and letter case do not make two servers. */
 export const serverKey = (url: string): string => url.trim().replace(/\/+$/, '').toLowerCase().replace('//localhost:', '//127.0.0.1:');

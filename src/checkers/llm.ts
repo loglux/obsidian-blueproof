@@ -182,6 +182,16 @@ export interface RequestProfile {
 	 * server holds the answer to (docs/provider-rules.md). Local servers hold it to the schema anyway; Google's was worse with it.
 	 */
 	strictSchema?: boolean;
+	/**
+	 * OpenAI's form: `response_format` `json_object` (any JSON) in place of a schema, for a server that refuses schemas:
+	 * DeepSeek's, "This response_format type is unavailable now" (2026-10-15). The instructions say which JSON.
+	 */
+	jsonObject?: boolean;
+	/**
+	 * OpenAI's form: the answer as the arguments of a function the model must call, in strict mode, which holds them to the
+	 * schema: DeepSeek's "strict mode (Beta)", at its `/beta` address only (api-docs.deepseek.com/guides/tool_calls, read 2026-10-16).
+	 */
+	strictTool?: boolean;
 	/** Anthropic: `output_config.effort` (`low` … `max`); unset, the model's default (`high`, Haiku 5.5 `medium`). */
 	effort?: string;
 	/** Anthropic: `thinking.type`, `disabled` (Haiku 5.5) or `between_tools` (Sonnet 5.5) to turn up-front thinking off. */
@@ -189,7 +199,7 @@ export interface RequestProfile {
 }
 
 /** What the benchmark sets on every profile to compare ways of asking; the plugin sets nothing. */
-export type ProfileOverride = Pick<RequestProfile, 'schemaOutput' | 'strictSchema' | 'effort' | 'thinking'>;
+export type ProfileOverride = Pick<RequestProfile, 'schemaOutput' | 'strictSchema' | 'strictTool' | 'effort' | 'thinking'>;
 
 /** Room for the thinking of a model that cannot turn it off: 200 to 330 tokens measured on short texts (Gemini 3, 2026-10-11). */
 export const THINKING_ROOM = 2048;
@@ -202,13 +212,16 @@ export interface StoredProfile {
 	completionTokens: boolean;
 	thinks?: boolean;
 	schemaOutput?: boolean;
+	jsonObject?: boolean;
+	/** False once the strict function call failed (DeepSeek's /beta gone): any JSON is asked for from then on. */
+	strictTool?: boolean;
 }
 
 /**
  * What the models tried so far refuse, so that even their first request goes through at once (measured 2026-10-10:
  * the benchmark and a probe of each). Anything else, a new model among it, is learnt from its own answers.
  */
-const KNOWN_PROFILES: ({ server: RegExp; model?: string | RegExp; omit: string[]; completionTokens?: boolean; thinks?: boolean } & ProfileOverride)[] = [
+const KNOWN_PROFILES: ({ server: RegExp; model?: string | RegExp; omit: string[]; completionTokens?: boolean; thinks?: boolean; jsonObject?: boolean } & ProfileOverride)[] = [
 	// OpenAI's server, for every model: "Unknown parameter: 'chat_template_kwargs'" (llama.cpp's switch); and every one
 	// tried (gpt-5.4-mini, 5.5, 5.6-luna/sol/terra, 6-astra/luna/sol, 6.1-sol): "'max_tokens' is not supported with this
 	// model. Use 'max_completion_tokens' instead."
@@ -242,6 +255,12 @@ const KNOWN_PROFILES: ({ server: RegExp; model?: string | RegExp; omit: string[]
 	// (a short one: 276 of its 292 tokens thought); gemini-3.1-pro-preview refuses "none": "Budget 0 is invalid. This
 	// model only works in thinking mode."
 	{ server: /^https:\/\/generativelanguage\.googleapis\.com\//i, model: /^gemini-3/, omit: ['temperature'], thinks: true },
+	// DeepSeek, both models (deepseek-flash, deepseek-v4-pro): no schema in response_format, only "json_object"; a schema is
+	// refused with no field named. Its "strict mode (Beta)" of function calls holds the answer to the schema, at /beta
+	// (api-docs.deepseek.com, read 2026-10-15/16). Measured 2026-10-16, one run each, 207 errors: deepseek-flash 196 found
+	// either way (195 / 194 right), deepseek-v4-pro 195 by the function and 191 by json_object. The function is asked for,
+	// any JSON if it fails. reasoning_effort "none" turns thinking off (the same docs); chat_template_kwargs is not in its API.
+	{ server: /^https:\/\/api\.deepseek\.com\//i, omit: ['chat_template_kwargs'], jsonObject: true, strictTool: true },
 ];
 
 /** The known part of a profile for a key "address|model". */
@@ -257,6 +276,8 @@ export function knownProfile(key: string): RequestProfile {
 		if (k.thinks) profile.thinks = true;
 		if (k.schemaOutput) profile.schemaOutput = true;
 		if (k.strictSchema) profile.strictSchema = true;
+		if (k.jsonObject) profile.jsonObject = true;
+		if (k.strictTool) profile.strictTool = true;
 		if (k.effort) profile.effort = k.effort;
 		if (k.thinking) profile.thinking = k.thinking;
 	}
@@ -281,7 +302,7 @@ export class RequestProfiles {
 		if (this.profiles === null) {
 			this.profiles = new Map();
 			for (const [k, p] of Object.entries(this.load())) {
-				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true, thinks: p.thinks === true, ...(p.schemaOutput === true ? { schemaOutput: true } : {}) });
+				if (Array.isArray(p?.omit)) this.profiles.set(k, { omit: new Set(p.omit.filter((x) => OPTIONAL.has(x))), completionTokens: p.completionTokens === true, thinks: p.thinks === true, ...(p.schemaOutput === true ? { schemaOutput: true } : {}), ...(p.jsonObject === true ? { jsonObject: true } : {}), ...(p.strictTool === false ? { strictTool: false } : {}) });
 			}
 		}
 		let profile = this.profiles.get(key);
@@ -293,6 +314,8 @@ export class RequestProfiles {
 		if (known.thinks) profile.thinks = true;
 		if (known.schemaOutput) profile.schemaOutput = true;
 		if (known.strictSchema) profile.strictSchema = true;
+		if (known.jsonObject) profile.jsonObject = true;
+		profile.strictTool ??= known.strictTool;
 		profile.effort ??= known.effort;
 		profile.thinking ??= known.thinking;
 		return Object.assign(profile, this.override);
@@ -301,7 +324,7 @@ export class RequestProfiles {
 	/** A profile has learnt something: keep them all. */
 	changed(): void {
 		const all: Record<string, StoredProfile> = {};
-		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens || p.thinks || p.schemaOutput) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens, ...(p.thinks ? { thinks: true } : {}), ...(p.schemaOutput ? { schemaOutput: true } : {}) };
+		for (const [k, p] of this.profiles ?? []) if (p.omit.size > 0 || p.completionTokens || p.thinks || p.schemaOutput || p.jsonObject || p.strictTool === false) all[k] = { omit: [...p.omit], completionTokens: p.completionTokens, ...(p.thinks ? { thinks: true } : {}), ...(p.schemaOutput ? { schemaOutput: true } : {}), ...(p.jsonObject ? { jsonObject: true } : {}), ...(p.strictTool === false ? { strictTool: false } : {}) };
 		this.save(all);
 	}
 }
@@ -339,6 +362,12 @@ export function adaptProfile(profile: RequestProfile, answer: string): boolean {
 	// Fable 5.1 too): asked by Anthropic's schema format instead, its advice for these models (docs/provider-rules.md).
 	if (!profile.schemaOutput && /^tool_choice: type/.test(errorMessage(answer))) {
 		profile.schemaOutput = true;
+		return true;
+	}
+	// DeepSeek refuses a schema and names no field: "This response_format type is unavailable now" (2026-10-15). Asked for
+	// any JSON instead, which it takes; the instructions describe the JSON.
+	if (!profile.jsonObject && /response_format type is unavailable/i.test(errorMessage(answer))) {
+		profile.jsonObject = true;
 		return true;
 	}
 	// Google names no field (2026-10-10): Gemma, "Thinking budget is not supported for this model."; gemini-3.5-flash-lite,
@@ -397,8 +426,14 @@ function googleBase(base: string): string {
 	return base.trim().replace(/^(https?:\/\/generativelanguage\.googleapis\.com).*$/i, '$1/v1beta');
 }
 
+/** DeepSeek's API, whose strict tool calls are at an address of their own (`/beta`; its model list is not there). */
+export function isDeepSeek(base: string): boolean {
+	return /^https?:\/\/api\.deepseek\.com(\/|$)/i.test(base.trim());
+}
+
 /** The address a request goes to: Anthropic's messages, Google's interactions, or OpenAI's chat completions. */
-export function requestUrl(base: string): string {
+export function requestUrl(base: string, profile?: RequestProfile): string {
+	if (profile?.strictTool && isDeepSeek(base)) return 'https://api.deepseek.com/beta/chat/completions';
 	if (isAnthropic(base)) return `${anthropicBase(base)}/messages`;
 	if (isGoogleNative(base)) return `${googleBase(base)}/interactions`;
 	return chatUrl(base);
@@ -583,16 +618,23 @@ export function chatBody(request: ChatRequest, model: string, profile: RequestPr
 		temperature: 0,
 		[profile.completionTokens ? 'max_completion_tokens' : 'max_tokens']: request.maxTokens + (profile.thinks ? THINKING_ROOM : 0),
 		// llama.cpp holds generation to the schema.
-		response_format: {
-			type: 'json_schema',
-			json_schema: profile.strictSchema ? { name: request.schemaName, strict: true, schema: strictSchema(request.schema) } : { name: request.schemaName, schema: request.schema },
-		},
+		response_format: profile.jsonObject
+			? { type: 'json_object' }
+			: {
+					type: 'json_schema',
+					json_schema: profile.strictSchema ? { name: request.schemaName, strict: true, schema: strictSchema(request.schema) } : { name: request.schemaName, schema: request.schema },
+				},
 		// A "thinking" model would think first, which takes long and is not needed to proofread. Each server has its own switch:
 		// llama.cpp takes chat_template_kwargs (OpenAI refuses it, and the profile then leaves it out); Ollama and OpenAI take
 		// reasoning_effort (a model that cannot turn thinking off is refused it, and the profile leaves it out too).
 		chat_template_kwargs: { enable_thinking: false },
 		reasoning_effort: profile.thinks ? 'low' : 'none',
 	};
+	if (profile.strictTool) {
+		delete body.response_format;
+		body.tools = [{ type: 'function', function: { name: request.schemaName, description: 'The answer.', strict: true, parameters: strictSchema(request.schema) } }];
+		body.tool_choice = { type: 'function', function: { name: request.schemaName } };
+	}
 	for (const key of profile.omit) delete body[key];
 	return JSON.stringify(body);
 }
@@ -628,12 +670,15 @@ export function requestBody(text: string, language: string, model: string, profi
  * Throws when the answer is not one.
  */
 export function completionOf(body: string): { content: string; finishReason: string | null; model: string | null } {
-	const data = JSON.parse(body) as { model?: unknown; choices?: { message?: { content?: unknown }; finish_reason?: unknown }[] };
+	const data = JSON.parse(body) as { model?: unknown; choices?: { message?: { content?: unknown; tool_calls?: { function?: { arguments?: unknown } }[] }; finish_reason?: unknown }[] };
 	const choice = data.choices?.[0];
-	if (typeof choice?.message?.content !== 'string') throw new Error('The answer has no message.');
+	// Asked by a function to call (strictTool), the answer is its arguments and the message's text is empty.
+	const args = choice?.message?.tool_calls?.[0]?.function?.arguments;
+	const content = typeof args === 'string' ? args : choice?.message?.content;
+	if (typeof content !== 'string') throw new Error('The answer has no message.');
 	return {
-		content: choice.message.content,
-		finishReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : null,
+		content,
+		finishReason: typeof choice?.finish_reason === 'string' ? choice.finish_reason : null,
 		model: typeof data.model === 'string' && data.model.trim() !== '' ? data.model.trim() : null,
 	};
 }
@@ -719,15 +764,20 @@ export class ModelClient {
 		const headers = keyHeaders(config.url, config.apiKey);
 		const anthropic = isAnthropic(config.url);
 		const google = isGoogleNative(config.url);
-		const url = requestUrl(config.url);
-		const profileKey = `${url}|${config.model.trim()}`;
+		const profileKey = `${requestUrl(config.url)}|${config.model.trim()}`;
 		const profile = this.profiles.get(profileKey);
 		let response: Awaited<ReturnType<PostJson>> | undefined;
 		try {
 			// A server that refuses one of our fields says which in its 400 answer: leave it out and ask again (a few times at most).
 			for (let attempt = 0; attempt < 4; attempt++) {
 				const body = anthropic ? anthropicBody(request, config.model, profile) : google ? googleBody(request, config.model, profile) : chatBody(request, config.model, profile);
-				response = await this.post(url, body, { headers, timeoutMs: TIMEOUT_MS });
+				response = await this.post(requestUrl(config.url, profile), body, { headers, timeoutMs: TIMEOUT_MS });
+				// DeepSeek's strict function calls are a beta at an address of their own: should it go, ask for any JSON instead.
+				if (profile.strictTool && isDeepSeek(config.url) && (response.status === 404 || ([400, 422].includes(response.status) && /tool|strict|function|beta/i.test(errorMessage(response.text))))) {
+					profile.strictTool = false;
+					this.profiles.changed();
+					continue;
+				}
 				if (response.status === 400 && adaptProfile(profile, response.text)) {
 					this.profiles.changed();
 					continue;

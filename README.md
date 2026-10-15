@@ -3,7 +3,7 @@
 
 Spelling and grammar checking for Obsidian by a language model that reads the whole sentence: it catches the errors
 rule-based checkers miss, leaves your LaTeX formulas alone, and checks each paragraph in its own language. The model
-runs on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini). Desktop only.
+runs on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini, DeepSeek). Desktop only.
 
 ![A note with underlined errors and the popup with fixes](docs/images/underlines.png)
 
@@ -59,8 +59,8 @@ language BlueProof has no dictionary for (⚠), and the note's title and propert
 
 Grammar needs a language model. Choose where it runs:
 
-- **In the cloud: OpenAI, Anthropic (Claude) or Google Gemini.** Works on any computer; paid per use (Gemini has a free
-  tier with a daily limit); the paragraphs being checked go to that company.
+- **In the cloud: OpenAI, Anthropic (Claude), Google Gemini or DeepSeek.** Works on any computer; paid per use (Gemini has
+  a free tier with a daily limit); the paragraphs being checked go to that company.
 - **On your own computer: Ollama, llama.cpp or LM Studio.** Free and private; needs a graphics card with about 8–12 GB
   of memory.
 
@@ -80,6 +80,12 @@ far higher ones with billing set up); choose **Google Gemini**, paste the key, p
 long paragraphs; `gemini-3.5-flash-lite` is the fastest and cheapest, and the one a free key allows most of (500
 requests a day, the Flash models 20). Pro and Gemma are not worth it: [docs/servers.md](docs/servers.md). On the free tier Google may use what is sent to improve its products; with
 billing set up it does not.
+
+**DeepSeek**: create an API key on [DeepSeek's platform](https://platform.deepseek.com/api_keys) and top up the balance;
+choose **DeepSeek**, paste the key, pick a model (`deepseek-flash`: in our tests about as accurate as `gpt-5.4-mini`, with
+fewer false findings), and press **Check**. DeepSeek's [privacy policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html) says it stores what it collects "in People's
+Republic of China" and may use inputs to train its models; whether you can opt out of that depends on where you live
+(details: [docs/servers.md](docs/servers.md#deepseek)).
 
 ![The model server settings with Google Gemini](docs/images/settings.png)
 
@@ -151,8 +157,8 @@ frequent first, so you can add the right ones in one go. Examples to start from:
 
 ## Privacy
 
-- The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI, Anthropic
-  or Google if you chose one of them.
+- The paragraph being checked goes to the server you chose and nowhere else: your own computer, or OpenAI, Anthropic,
+  Google or DeepSeek if you chose one of them.
 - No account, no telemetry, no ads. An API key is kept in Obsidian's secret storage and sent
   only to the server it was given for.
 - Hunspell dictionaries are downloaded from LibreOffice's repository on GitHub (`api.github.com`,

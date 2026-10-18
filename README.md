@@ -3,7 +3,7 @@
 
 Spelling and grammar checking for Obsidian by a language model that reads the whole sentence: it catches the errors
 rule-based checkers miss, leaves your LaTeX formulas alone, and checks each paragraph in its own language. The model
-runs on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini, DeepSeek). Desktop only.
+runs on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini, DeepSeek). On computers, phones and tablets.
 
 ![A note with underlined errors and the popup with fixes](docs/images/underlines.png)
 
@@ -48,7 +48,10 @@ lists the ones Windows has.
 **Linux and macOS**: download a dictionary for your language in **Settings → BlueProof → Spelling → Manage…** (the
 system's Hunspell dictionaries count too). Not tested on macOS yet.
 
-A language with no dictionary gets ⚠ in the status bar.
+**Android and iOS**: download a dictionary the same way, or leave spelling to your phone's keyboard: choose **Off** under
+**Spelling → Checked by**. Tested on Android; not on iOS yet.
+
+A language with no dictionary gets ⚠ in the status bar (on a phone, which has none, a notice says so).
 
 While BlueProof checks spelling, Obsidian's own spellcheck (**Settings → Editor → Spellcheck**) is kept out of the
 note's text, so a word is not underlined twice. That setting is not changed: turn BlueProof's spelling, checking while
@@ -59,7 +62,7 @@ language BlueProof has no dictionary for (⚠), and the note's title and propert
 
 Grammar needs a language model. Choose where it runs:
 
-- **In the cloud: OpenAI, Anthropic (Claude), Google Gemini or DeepSeek.** Works on any computer; paid per use (Gemini has
+- **In the cloud: OpenAI, Anthropic (Claude), Google Gemini or DeepSeek.** Works on any computer or phone; paid per use (Gemini has
   a free tier with a daily limit); the paragraphs being checked go to that company.
 - **On your own computer: Ollama, llama.cpp or LM Studio.** Free and private; needs a graphics card with about 8–12 GB
   of memory.
@@ -105,8 +108,8 @@ it yet: treat it as experimental.
 
 </details>
 
-A local model can take a minute to load on the first check after it starts. A server on another computer:
-[docs/servers.md](docs/servers.md).
+A local model can take a minute to load on the first check after it starts. A server on another computer, or for a phone
+(your computer's server, reached over your network): [docs/servers.md](docs/servers.md).
 
 ## Using it
 

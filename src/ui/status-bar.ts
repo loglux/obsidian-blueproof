@@ -1,7 +1,7 @@
 // The plugin's two status bar items: the findings of the open note (or what is wrong with a checker), and the note's
 // language with its menu.
 import type { EditorView } from '@codemirror/view';
-import { Menu, type TFile } from 'obsidian';
+import { Menu, Notice, Platform, type TFile } from 'obsidian';
 import { CombinedGrammarChecker } from '../checkers/combined';
 import { clockTime } from '../checkers/llm';
 import { addStyleItems } from '../commands/suggest-style';
@@ -11,11 +11,16 @@ import { allMarks, findingsSummary } from '../editor/problems';
 import { LANGUAGE_KEYS, type LanguageKey, languageLabel, languageSections, languageValue, noteLanguageText } from '../prose/note-language';
 import { parseLanguages } from '../settings';
 import type BlueProofPlugin from '../main';
+import { NOTICE_MS, OnceNotices } from './once-notices';
 import { StatusItem } from './status-item';
 
 export class StatusBar {
 	private readonly findings: StatusItem;
 	private readonly language: StatusItem;
+	/** Where there is no status bar (a phone, a tablet), its warnings as notices. */
+	private readonly notices = Platform.isMobile ? new OnceNotices() : null;
+	/** The warnings of the last update, for the notices. */
+	private warnings: string[] = [];
 
 	constructor(private readonly plugin: BlueProofPlugin) {
 		this.findings = new StatusItem(plugin.addStatusBarItem());
@@ -87,7 +92,10 @@ export class StatusBar {
 		item.el.toggle(text !== null);
 		if (text !== null) item.show(icon, text, tip);
 		item.el.toggleClass('blueproof-status-problem', problem !== null);
+		// the problem without the count of paragraphs, which changes and would make it a new notice each minute
+		this.warnings = problem !== null && !(file && this.plugin.isOff(file)) ? [`BlueProof: ${problem}`] : [];
 		this.updateLanguage(file, view);
+		if (this.notices) for (const message of this.notices.update(this.warnings, Date.now())) new Notice(message, NOTICE_MS);
 	}
 
 	/** The language item of the status bar: the note's stated languages, or the found ones, or nothing for no note. */
@@ -109,12 +117,13 @@ export class StatusBar {
 		if (missing.length === 0) item.show('languages', text, tip);
 		else {
 			const where = this.plugin.spelling.kind() === 'windows' ? "add the language in Windows' settings (Time & language)" : 'download it in the plugin settings (Spelling)';
+			this.warnings.push(`BlueProof: no spelling dictionary for ${missing.map(languageLabel).join(', ')}, so its words are not checked: ${where}.`);
 			// Obsidian's own spellcheck is left on in such a note: on Windows it asks the same checker, elsewhere it has
 			// dictionaries of its own (if it is on in Settings, Editor, Spellcheck).
 			item.show(
 				'languages',
 				`${text} ⚠`,
-				`${tip} No spelling dictionary for ${missing.map(languageLabel).join(', ')} on this computer, so BlueProof does not check its words: ${where}. Obsidian's own spellcheck (if on) checks this note meanwhile.`,
+				`${tip} No spelling dictionary for ${missing.map(languageLabel).join(', ')} here, so BlueProof does not check its words: ${where}. Obsidian's own spellcheck (if on) checks this note meanwhile.`,
 			);
 		}
 		item.el.toggleClass('blueproof-language-found', stated.length === 0);

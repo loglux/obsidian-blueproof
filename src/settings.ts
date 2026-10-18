@@ -77,7 +77,20 @@ export const MODEL_SERVERS: { id: string; name: string; url: string }[] = [
 	{ id: 'deepseek', name: 'DeepSeek (cloud: the text leaves your computer)', url: 'https://api.deepseek.com/v1' },
 ];
 
-/** A server in the cloud: it needs a key and a model chosen (it has no default one). */
+/**
+ * The model a cloud server starts with, the one docs/servers.md recommends from the benchmark: the field was empty
+ * before, its hint looked like a value, and the author left it so on Android (2026-10-18), with no word why on a phone.
+ * A local server has none: its models are the ones the user installed.
+ */
+export const RECOMMENDED_MODELS: Record<string, string> = {
+	openai: 'gpt-5.4-mini',
+	anthropic: 'claude-haiku-5-5',
+	gemini: 'gemini-3.5-flash-lite',
+	'gemini-openai': 'gemini-3.5-flash-lite',
+	deepseek: 'deepseek-flash',
+};
+
+/** A server in the cloud: it needs a key (and starts with its RECOMMENDED_MODELS one). */
 export const isCloudServer = (url: string): boolean => ['openai', 'anthropic', 'gemini', 'gemini-openai', 'deepseek'].includes(modelServerOf(url));
 
 /** An address as a key: `localhost` and `127.0.0.1`, a final slash and letter case do not make two servers. */
@@ -109,6 +122,7 @@ export function switchModelServer(s: BlueProofSettings, url: string): void {
 	[s.modelName, s.modelNames] = swap(s.modelName, s.modelNames);
 	[s.modelApiKeySecret, s.modelApiKeySecrets] = swap(s.modelApiKeySecret, s.modelApiKeySecrets);
 	s.modelUrl = url;
+	if (s.modelName === '') s.modelName = RECOMMENDED_MODELS[modelServerOf(url)] ?? '';
 }
 
 /** Whether the API key field is shown for this address: a cloud server or one not listed; llama.cpp, Ollama, LM Studio need none. */
@@ -289,6 +303,8 @@ export function normalizeSettings(raw: unknown): BlueProofSettings {
 	}
 	// Settings stored before 0.4.12 have no such field: moved once.
 	if (stored.googleOwnApi !== true) moveToGoogleOwnApi(result);
+	// A cloud server left with no model (an older version did not fill it in): its recommended one.
+	if (result.modelName === '') result.modelName = RECOMMENDED_MODELS[modelServerOf(result.modelUrl)] ?? '';
 	// An array of known keys; anything else (an older version stored free text) gives the default.
 	const focus = stored.styleFocus;
 	result.styleFocus = Array.isArray(focus)

@@ -14,6 +14,7 @@ import {
 	isCloudServer,
 	MODEL_SERVERS,
 	modelServerOf,
+	RECOMMENDED_MODELS,
 	switchModelServer,
 	takesApiKey,
 	parseIgnoredRules,
@@ -44,13 +45,16 @@ const GRAMMAR_HINTS: Record<string, string> = {
 	off: 'Grammar is not checked.',
 };
 
+/** Whether the system has Hunspell dictionaries the plugin reads (Linux, macOS; not Android, which Obsidian calls Linux too). */
+const SYSTEM_DICTIONARIES = Platform.isDesktopApp && !Platform.isWin;
+
 /** Said under every choice that checks spelling: where Obsidian's own spellcheck went (see keepsBuiltinOut in main.ts). */
 const BUILTIN_OUT = " Obsidian's own spellcheck is paused while BlueProof checks.";
 
 /** What each spelling choice does, as the description under the choice. */
 const SPELLING_HINTS: Record<string, string> = {
 	windows: `Uses the languages installed in Windows; nothing to download.${BUILTIN_OUT}`,
-	hunspell: `LibreOffice's dictionaries: download them below${Platform.isLinux ? ", or use the system's" : ''}.${BUILTIN_OUT}`,
+	hunspell: `LibreOffice's dictionaries: download them below${SYSTEM_DICTIONARIES ? ", or use the system's" : ''}.${BUILTIN_OUT}`,
 	off: "Spelling is not checked by BlueProof (Obsidian's own spellcheck works as set in Editor, Spellcheck).",
 };
 
@@ -286,7 +290,7 @@ export class BlueProofSettingTab extends PluginSettingTab {
 		const have = this.hunspellState.filter((d) => d.where !== null && d.listed);
 		if (parseLanguages(this.plugin.settings.languages).length === 0) {
 			// "auto": nothing listed to be missing; a paragraph in a language without a dictionary is left unchecked.
-			const system = Platform.isWin ? '' : ", or the system's,";
+			const system = SYSTEM_DICTIONARIES ? ", or the system's," : '';
 			return have.length > 0
 				? `${have.map((d) => dictionaryLabel(d.tag)).join(', ')}. Each paragraph is checked with the dictionary${system} of the language it is in.`
 				: `None downloaded yet. Each paragraph is checked with the dictionary${system} of the language it is in, when there is one.`;
@@ -614,7 +618,7 @@ export class BlueProofSettingTab extends PluginSettingTab {
 							} else {
 								setting.addText((t) =>
 									t
-										.setPlaceholder({ openai: 'gpt-5.4-mini', anthropic: 'claude-haiku-4-5', gemini: 'gemini-3.5-flash-lite', 'gemini-openai': 'gemini-3.5-flash-lite', deepseek: 'deepseek-flash' }[modelServerOf(s().modelUrl)] ?? 'qwen3:14b')
+										.setPlaceholder(RECOMMENDED_MODELS[modelServerOf(s().modelUrl)] ?? 'qwen3:14b')
 										.setValue(s().modelName)
 										.onChange((value) => void this.setControlValue('modelName', value.trim())),
 								);

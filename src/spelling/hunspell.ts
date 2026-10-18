@@ -92,17 +92,20 @@ export class HunspellDictionaries implements Dictionary {
 
 	/** The languages the system has Hunspell dictionaries for (Linux, macOS; none on Windows). Only names are looked at. */
 	async systemTags(): Promise<string[]> {
-		if (!Platform.isDesktop || Platform.isWin) return [];
-		// eslint-disable-next-line @typescript-eslint/no-require-imports -- a Node module, loaded on the desktop only
-		const fs = require('fs') as typeof import('fs');
-		// eslint-disable-next-line @typescript-eslint/no-require-imports -- a Node module, loaded on the desktop only
-		const os = require('os') as typeof import('os');
 		const tags = new Set<string>();
-		for (const dir of systemFolders(os.homedir())) {
-			try {
-				for (const tag of pairsIn(await fs.promises.readdir(dir))) tags.add(tag);
-			} catch {
-				// no such folder
+		// The require inside the Platform.isDesktop block, not after an early return: Obsidian's review (0.4.15) took only
+		// this form for guarded, and warned "Node.js APIs are not available on mobile" for the other.
+		if (Platform.isDesktop && !Platform.isWin) {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports -- a Node module, loaded on the desktop only
+			const fs = require('fs') as typeof import('fs');
+			// eslint-disable-next-line @typescript-eslint/no-require-imports -- a Node module, loaded on the desktop only
+			const os = require('os') as typeof import('os');
+			for (const dir of systemFolders(os.homedir())) {
+				try {
+					for (const tag of pairsIn(await fs.promises.readdir(dir))) tags.add(tag);
+				} catch {
+					// no such folder
+				}
 			}
 		}
 		return [...tags].sort();
@@ -116,10 +119,14 @@ export class HunspellDictionaries implements Dictionary {
 			const adapter = this.app.vault.adapter;
 			return { aff: await adapter.read(`${found.where}.aff`), dic: await adapter.read(`${found.where}.dic`) };
 		}
-		// eslint-disable-next-line @typescript-eslint/no-require-imports -- a Node module, loaded on the desktop only
-		const fs = require('fs') as typeof import('fs');
-		const [aff, dic] = await Promise.all([fs.promises.readFile(`${found.where}.aff`, 'utf8'), fs.promises.readFile(`${found.where}.dic`, 'utf8')]);
-		return { aff, dic };
+		// a system dictionary is found on the desktop only (locate); the block says so to Obsidian's review too
+		if (Platform.isDesktop) {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports -- a Node module, loaded on the desktop only
+			const fs = require('fs') as typeof import('fs');
+			const [aff, dic] = await Promise.all([fs.promises.readFile(`${found.where}.aff`, 'utf8'), fs.promises.readFile(`${found.where}.dic`, 'utf8')]);
+			return { aff, dic };
+		}
+		return null;
 	}
 
 	/** Sends a tag's dictionary to the worker once; false when there is no dictionary for it. */

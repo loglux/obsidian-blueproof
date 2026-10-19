@@ -70,6 +70,21 @@ computer, Qwen3 14B was the best balance of the models that fit a 12 GB graphics
 fewer errors than the cloud ones. The models one by one, with times and false alarms:
 [servers.md](servers.md).
 
+## Why not Google's free tier
+
+A Gemini key from Google AI Studio works without payment, but we do not recommend it for writing:
+
+- **Too few requests.** BlueProof sends a request for each paragraph you change. A free key allowed, per model and per
+  day, 20 requests for Gemini 3.8 Flash and the other Flash models, 500 for 3.5 Flash-Lite, and none for Pro (October
+  11). 20 is enough to try the plugin, not to write with it.
+- **Gemma 4, which the free tier allows most of** (14,400 a day), was no use: it repeated the same words up to the
+  length limit and gave no answer for 43 of 274 texts, every long paragraph among them.
+- **What you send.** On the free tier Google may use what is sent to improve its products, and its terms say human
+  reviewers may read it. With billing set up, it does not.
+
+With billing set up, the same key gets far higher limits (Flash-Lite 150,000 requests a day), and Flash-Lite is one of
+the cheapest models we tried.
+
 ## What these tests do not show
 
 - They are small and made by us: a difference of one or two errors means nothing.

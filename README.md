@@ -62,8 +62,7 @@ language BlueProof has no dictionary for (⚠), and the note's title and propert
 
 Grammar needs a language model. Choose where it runs:
 
-- **In the cloud: OpenAI, Anthropic (Claude), Google Gemini or DeepSeek.** Works on any computer or phone; paid per use (Gemini has
-  a free tier with a daily limit); the paragraphs being checked go to that company.
+- **In the cloud: OpenAI, Anthropic (Claude), Google Gemini or DeepSeek.** Works on any computer or phone; paid per use; the paragraphs being checked go to that company.
 - **On your own computer: Ollama, llama.cpp or LM Studio.** Free and private; needs a graphics card with about 8–12 GB
   of memory.
 
@@ -77,12 +76,12 @@ the best and the fastest in our tests), and press **Check** at the top of the se
 **Anthropic Claude**, paste the key, pick a model (`claude-sonnet-5-5` found the most in our tests, `claude-haiku-5-5`
 made no false finding and is quicker), and press **Check**.
 
-**Google Gemini**: create an API key in [Google AI Studio](https://aistudio.google.com/apikey) (free, with daily limits;
-far higher ones with billing set up); choose **Google Gemini**, paste the key, pick a model, and press **Check**. Measured
+**Google Gemini**: create an API key in [Google AI Studio](https://aistudio.google.com/apikey) and set up billing
+for it: a free key allows 20 requests a day for the Flash models, enough to try the plugin, not to write with it
+([why not the free tier](docs/comparison.md#why-not-googles-free-tier)); choose **Google Gemini**, paste the key, pick a model, and press **Check**. Measured
 2026-10-11 (Google's models change): `gemini-3.8-flash` found the most of all the cloud models in our tests, slower on
-long paragraphs; `gemini-3.5-flash-lite` is the fastest and cheapest, and the one a free key allows most of (500
-requests a day, the Flash models 20). Pro and Gemma are not worth it: [docs/servers.md](docs/servers.md). On the free tier Google may use what is sent to improve its products; with
-billing set up it does not.
+long paragraphs; `gemini-3.5-flash-lite` is the fastest and cheapest. Pro and Gemma are not worth it:
+[docs/servers.md](docs/servers.md). With billing set up, Google does not use what is sent to improve its products.
 
 **DeepSeek**: create an API key on [DeepSeek's platform](https://platform.deepseek.com/api_keys) and top up the balance;
 choose **DeepSeek**, paste the key, pick a model (`deepseek-flash`: in our tests about as accurate as `gpt-5.4-mini`, with

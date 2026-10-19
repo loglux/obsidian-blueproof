@@ -13,7 +13,6 @@ After any of these: **Settings → BlueProof → Status → Check** says whether
 |---|---|---|
 | A graphics card with 8–12 GB | a local model (llama.cpp or Ollama) | The text stays on your computer. |
 | No graphics card, but you accept the cloud | OpenAI, Anthropic, Google Gemini or DeepSeek | The paragraphs being checked leave your computer; you pay per use (cost not measured). |
-| No graphics card, the cloud, and no payment | Google Gemini's free tier (Flash-Lite) | A few hundred paragraphs a day; Google may use what is sent on the free tier to improve its products. |
 | No graphics card, and no cloud | — | Spelling still works; grammar needs a model. A small model on the processor was not tried. |
 
 Models, measured on the plugin's benchmark (25 errors in plain text, 13 with formulas, and
@@ -131,7 +130,9 @@ The paragraphs being checked are sent to Anthropic. By its data retention page (
 Tried: yes, on a free key (2026-10-10) and a paid one (2026-10-11). Measured: `gemini-3.8-flash` and
 `gemini-3.5-flash-lite` (results above), `gemma-4-26b-a4b-it` (below).
 
-1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey); no payment is needed for the free tier.
+1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey) and set up billing for it. A free key
+   is enough to try the plugin, not to write with it (the limits below;
+   [why not the free tier](comparison.md#why-not-googles-free-tier)).
 2. In the settings: Server **Google Gemini**, the key under **API key** (kept in Obsidian's secret storage and sent only
    to Google), then **choose a model** from the list the server gives.
 
@@ -145,7 +146,7 @@ what is sent (`store: false`).
 Which model, as measured on 2026-10-11 (Google's models change; the newest Flash is worth trying when it comes):
 
 - `gemini-3.8-flash`: found the most of all the cloud models; slower on a long paragraph.
-- `gemini-3.5-flash-lite`: the fastest; a little behind gpt-5.4-mini; the cheapest, and the one a free key allows most of.
+- `gemini-3.5-flash-lite`: the fastest; a little behind gpt-5.4-mini; the cheapest.
 - The older Flash and Flash-Lite in the list (3, 3.1, 3.5, 3.6, 3.7) answered a test sentence right; not measured.
 - Not worth choosing: the Pro models (a paid key at Google's first tier allows 250 requests a day, a note or two; they
   think before every answer and cost the most), and Gemma 4 (below). The 2.5 models answer "no longer available to new

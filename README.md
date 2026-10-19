@@ -10,7 +10,7 @@ runs on your own computer or in the cloud (OpenAI, Anthropic, Google Gemini, Dee
 ## Features
 
 - **Reads for meaning.** The model checks each sentence against the ones before it: "Maria presented the findings.
-  Afterwards he answered questions." On our test sentences models found far more errors than LanguageTool.
+  Afterwards he answered questions." On our test sentences models found far more errors than LanguageTool ([what we found](docs/comparison.md)).
 - **Math stays out of the way.** A formula in the middle of a sentence confuses most checkers. BlueProof keeps
   formulas out of the check, never changes them, and still checks the sentence around them.
 - **Many languages**, a different one in each paragraph.

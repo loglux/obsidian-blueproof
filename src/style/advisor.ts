@@ -39,30 +39,28 @@ export const STYLE_SCHEMA = {
 	required: ['improved', 'changes'],
 } as const;
 
-/** BlueEdit names Russian and the two Englishes itself; other languages by their English name. */
+/** The paragraph's language by its English name; English with its variant when the region is told. */
 function styleLanguageName(language: string): string {
 	const tag = language.toLowerCase();
-	if (tag.startsWith('ru')) return 'Russian';
+	if (tag.startsWith('en-gb')) return 'British English';
 	if (tag.startsWith('en-us')) return 'American English';
-	if (tag.startsWith('en')) return 'British English';
 	if (tag === 'auto') return 'the same language as the text';
-	return languageName(language) ?? 'the same language as the text';
+	return languageName(tag.split('-')[0]!) ?? 'the same language as the text';
 }
 
 /**
  * The model's instructions for the chosen kinds of improvement (none: all) and the paragraph's language. BlueEdit's wording,
- * measured there on Russian and British English. `ownInstruction`, the user's own words added at the end, is this plugin's
+ * measured there on Russian and British English, with the paragraph's own language named in place of "Russian and British
+ * English" (2026-10-21). `ownInstruction`, the user's own words added at the end, is this plugin's
  * and not measured.
  */
 export function styleInstructions(focus: readonly string[], language: string, ownInstruction = ''): string {
 	const name = styleLanguageName(language);
 	let what = STYLE_FOCUSES.filter((f) => focus.includes(f.key)).map((f) => f.prompt);
 	if (what.length === 0) what = STYLE_FOCUSES.filter((f) => DEFAULT_STYLE_FOCUS_KEYS.includes(f.key)).map((f) => f.prompt);
-	const tag = language.toLowerCase();
-	const measured = tag === 'auto' || tag.startsWith('ru') || tag.startsWith('en');
 	const own = ownInstruction.trim();
 	return (
-		(measured ? 'You are a careful editor of Russian and British English prose. ' : 'You are a careful editor of prose. ') +
+		'You are a careful editor of prose. ' +
 		"Improve the wording of the user's paragraph, looking only for: " +
 		what.join('; ') +
 		'. ' +

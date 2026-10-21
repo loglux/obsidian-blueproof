@@ -182,3 +182,29 @@ export function blankSpans(text: string, spans: readonly Span[]): string {
 	for (const s of spans) result = result.slice(0, s.start) + ' '.repeat(s.length) + result.slice(s.start + s.length);
 	return result;
 }
+
+// Formulas, code and links: their letters (x, \frac, a file name) are not words of a language.
+const NOT_PROSE = /\$\$[\s\S]*?\$\$|\$[^$\n]*\$|`[^`]*`|https?:\/\/\S+|\\[A-Za-z]+/g;
+/** Fewer letters of another script than this (a symbol, a variable) is not another language in the paragraph. */
+const OTHER_LANGUAGE_LETTERS = 4;
+
+/**
+ * The other languages of a paragraph checked as `language`: words written in another script (English terms in a Russian
+ * paragraph), each script's by the language model among those written in it, when it has enough letters to tell
+ * (FEW_LETTERS), else null: a language not named. Languages that share the paragraph's script (an English quotation in
+ * German) are not found: the letters do not set them apart, and a few words are too few for the model.
+ */
+export function otherLanguagesIn(text: string, language: string): (string | null)[] {
+	const prose = text.replace(NOT_PROSE, ' ');
+	const own = scriptOf(language);
+	const found: (string | null)[] = [];
+	for (const [script, test] of SCRIPT_TEST) {
+		if (script === own) continue;
+		const words = prose.split(/[^\p{L}\p{M}'’-]+/u).filter((w) => test.test(w));
+		const count = letters(words.join(''));
+		if (count < OTHER_LANGUAGE_LETTERS) continue;
+		const among = GUESS_AMONG.filter((l) => scriptOf(l) === script);
+		found.push(count >= FEW_LETTERS && among.length > 0 ? detectAmong(words.join(' '), among) : among.length === 1 ? among[0]! : null);
+	}
+	return found;
+}

@@ -2,6 +2,7 @@
 // after BlueEdit's LlmGrammarChecker and LlmServer.Chat. The server is the user's: this only asks it.
 // No `obsidian` import: the HTTP call is passed in (see http.ts).
 import { type Chunk, CHUNK_SIZE, chunksOf, sentenceStarts, WHOLE_UP_TO } from '../prose/chunks';
+import { otherLanguagesIn } from '../prose/language';
 import { formulasIn } from '../prose/lines';
 import { issuesFrom, rewrote } from '../prose/llm-answer';
 import { AnswerCache, isFinal } from './answer-cache';
@@ -63,8 +64,9 @@ export function chatUrl(base: string): string {
 	return `${trimmed}/v1/chat/completions`;
 }
 
-// Benchmarked in BlueEdit (tools/proofbench) for Russian and British English, so those two keep the measured wording.
-// Other languages get the same instruction with the language named; that wording has not been measured.
+// One wording for every language, with the paragraph's own named. Until 2026-10-21 Russian and English paragraphs were told
+// "a careful proofreader for Russian and British English", the wording measured in BlueEdit (tools/proofbench) for the
+// author's mixed notes, whichever of the two the paragraph was in; every other language got this one.
 const OUTPUT_FORMAT =
 	'Answer only with JSON: {"corrected": "<the whole text, corrected>", "errors": [{"original": "<exact wrong fragment>", ' +
 	'"replacement": "<fix>", "alternatives": ["<other correct fixes, if the text allows several>"], ' +
@@ -78,7 +80,7 @@ const OUTPUT_FORMAT =
 export const CONSISTENCY =
 	'Read the whole text before correcting it: a sentence can be wrong only because of an earlier one. Check that pronouns, gender and number agree with the people and things named before them, even sentences earlier (a woman named, then "he wrote": "she wrote"), and that verb tenses agree with the time words (tomorrow or next week: the future). ';
 const ALTERNATIVES =
-	'When more than one fix is correct (for example the speaker\'s gender is unknown: "я пошёл" or "я пошла"), ' +
+	'When more than one fix is correct (for example a verb shows the speaker\'s gender and the text does not tell it), ' +
 	'put the most likely one in replacement and the others in alternatives. ' +
 	'If there are no errors, return the text unchanged and an empty errors list.';
 
@@ -91,14 +93,15 @@ export function languageName(language: string): string | null {
 }
 
 /**
- * The English the instructions ask for: British (en-GB spelling) for en-GB and for English with no region, as measured;
- * another region's own (en-US: "American English (en-US spelling)"). Until 2026-10-08 every English was told British
- * spelling, and American spellings in American text could be "corrected" (BlueEdit #124). The wording for a region other
- * than Britain is not measured.
+ * The English the instructions ask for: the region's own spelling when the region is told (en-GB: "British English (en-GB
+ * spelling)", en-US: "American English (en-US spelling)"; until 2026-10-08 every English was told British spelling, and
+ * American spellings in American text could be "corrected", BlueEdit #124), the text's own when it is not ("en", what
+ * "auto" finds: British and American cannot be told apart from the text).
  */
 export function englishOf(tag: string): string {
 	const region = tag.split('-')[1]?.toUpperCase();
-	if (!tag.startsWith('en') || region === undefined || region === 'GB') return 'British English (en-GB spelling)';
+	if (region === undefined) return 'English (keep the spelling the text uses, British or American)';
+	if (region === 'GB') return 'British English (en-GB spelling)';
 	let name: string | undefined;
 	try {
 		name = new Intl.DisplayNames(['en'], { type: 'language' }).of(`en-${region}`);
@@ -108,25 +111,34 @@ export function englishOf(tag: string): string {
 	return `${name && name !== `en-${region}` ? name : 'English'} (en-${region} spelling)`;
 }
 
-export function instructions(language: string): string {
+/** The paragraph's language as the instructions name it: English with its spelling, any other by its English name. */
+export function proofreadLanguage(language: string): string | null {
 	const tag = language.toLowerCase();
-	// "auto" is a paragraph whose language was not told (src/prose/language.ts): it may be any, so it is not the
-	// Russian and English wording, which once went to every user who left the setting at "auto"
-	const measured = tag.startsWith('ru') || tag.startsWith('en');
-	if (measured) {
-		return (
-			`You are a careful proofreader for Russian and ${englishOf(tag)}. ` +
-			"Fix only spelling, grammar and punctuation errors in the user's text. Do not rephrase, do not change style, " +
-			'do not change anything that is correct, keep line breaks. ' +
-			CONSISTENCY +
-			OUTPUT_FORMAT +
-			'Write every explanation in the language of the text it is about: Russian for Russian text, English for English text. ' +
-			ALTERNATIVES
-		);
-	}
-	const name = languageName(language) ?? 'the language of the text';
+	if (tag === 'auto') return null;
+	if (tag === 'en' || tag.startsWith('en-')) return englishOf(tag);
+	// By its language alone: "Russian", not "Russian (Russia)"
+	return languageName(tag.split('-')[0]!);
+}
+
+/**
+ * The paragraph's languages as the instructions say them: its own, and those of words in another script in it (English
+ * terms in a Russian paragraph, src/prose/language.ts `otherLanguagesIn`; null: one not named), each part checked in its
+ * own. Until 2026-10-21 every Russian and English paragraph was "Russian and British English" whichever it was in.
+ */
+export function languagesSaid(language: string, others: readonly (string | null)[] = []): string | null {
+	const name = proofreadLanguage(language);
+	if (name === null) return null;
+	const named = [...new Set(others.filter((o): o is string => o !== null).map(proofreadLanguage).filter((n): n is string => n !== null && n !== name))];
+	if (others.some((o) => o === null)) named.push('another language');
+	return named.length === 0 ? name : `${name}, with words in ${named.join(' and ')}`;
+}
+
+export function instructions(language: string, others: readonly (string | null)[] = []): string {
+	const said = languagesSaid(language, others);
 	return (
-		`You are a careful proofreader. The user's text is in ${name}: write in ${name}, never translate. ` +
+		(said === null
+			? 'You are a careful proofreader. Write in the language of the text, never translate. '
+			: `You are a careful proofreader. The user's text is in ${said}: correct each part in its own language, never translate. `) +
 		"Fix only spelling, grammar and punctuation errors in the user's text. Do not rephrase, do not change style, " +
 		'do not change anything that is correct, keep line breaks. ' +
 		CONSISTENCY +
@@ -657,7 +669,8 @@ export function looksLikeLatex(text: string): boolean {
 export type AdjustInstructions = (system: string, language: string) => string;
 
 export function proofreadRequest(text: string, language: string, adjust: AdjustInstructions = (system) => system): ChatRequest {
-	const system = adjust(looksLikeLatex(text) ? instructions(language) + LATEX_INSTRUCTIONS : instructions(language), language);
+	const base = instructions(language, otherLanguagesIn(text, language));
+	const system = adjust(looksLikeLatex(text) ? base + LATEX_INSTRUCTIONS : base, language);
 	return { system, user: text, schemaName: 'proofread', schema: SCHEMA, maxTokens: Math.min(4000, 200 + text.length * 2) };
 }
 

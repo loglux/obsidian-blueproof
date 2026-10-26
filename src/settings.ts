@@ -63,18 +63,18 @@ const GOOGLE_OWN_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const GOOGLE_OPENAI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 
 export const MODEL_SERVERS: { id: string; name: string; url: string }[] = [
-	{ id: 'llamacpp', name: 'llama.cpp (llama-server)', url: 'http://127.0.0.1:8080/v1' },
+	{ id: 'llamacpp', name: 'llama.cpp', url: 'http://127.0.0.1:8080/v1' },
 	{ id: 'ollama', name: 'Ollama', url: 'http://127.0.0.1:11434/v1' },
 	{ id: 'lmstudio', name: 'LM Studio', url: 'http://127.0.0.1:1234/v1' },
-	{ id: 'openai', name: 'OpenAI (cloud: the text leaves your computer)', url: 'https://api.openai.com/v1' },
-	{ id: 'anthropic', name: 'Anthropic Claude (cloud: the text leaves your computer)', url: 'https://api.anthropic.com/v1' },
+	{ id: 'openai', name: 'OpenAI (cloud)', url: 'https://api.openai.com/v1' },
+	{ id: 'anthropic', name: 'Anthropic Claude (cloud)', url: 'https://api.anthropic.com/v1' },
 	// Google's own API (Interactions), from 0.4.12: gemini-3.5-flash-lite lost 11 errors of a long Russian paragraph at once
 	// (a piece answered with no change) in 2 runs of 3 through the OpenAI form, in none of 3 through this (2026-10-12).
-	{ id: 'gemini', name: 'Google Gemini (cloud: the text leaves your computer)', url: GOOGLE_OWN_URL },
+	{ id: 'gemini', name: 'Google Gemini (cloud)', url: GOOGLE_OWN_URL },
 	// Google's Gemini API in OpenAI's form: the same requests as OpenAI's, at its own address. Kept to fall back on.
-	{ id: 'gemini-openai', name: 'Google Gemini, OpenAI form (a fallback; cloud)', url: GOOGLE_OPENAI_URL },
+	{ id: 'gemini-openai', name: 'Gemini, OpenAI form (cloud)', url: GOOGLE_OPENAI_URL },
 	// DeepSeek's API in OpenAI's form (api-docs.deepseek.com, read 2026-10-15); a schema is refused, JSON asked for (llm.ts).
-	{ id: 'deepseek', name: 'DeepSeek (cloud: the text leaves your computer)', url: 'https://api.deepseek.com/v1' },
+	{ id: 'deepseek', name: 'DeepSeek (cloud)', url: 'https://api.deepseek.com/v1' },
 ];
 
 /**
@@ -144,7 +144,7 @@ export const GRAMMAR_CHECKERS: Record<string, string> = {
 export const SPELLING_ENGINES: Record<string, string> = {
 	auto: "Automatic: Windows' on Windows, Hunspell elsewhere",
 	windows: "Windows' spell checker",
-	hunspell: 'Hunspell (the dictionaries of LibreOffice)',
+	hunspell: 'Hunspell',
 	off: 'Off',
 };
 

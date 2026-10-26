@@ -289,3 +289,37 @@
 	font-size: var(--font-ui-small);
 	white-space: nowrap;
 }
+
+/*
+ * The settings on a narrow screen (a tablet's settings window, a large font, a narrow window): a row whose description and
+ * control do not fit side by side puts the control under the description, as Obsidian does on a phone. The description
+ * asks for 16em before that happens; where there is room nothing moves. Not on a phone, where Obsidian stacks
+ * every row itself (16em there became a height). Seen 2026-10-26 on a Galaxy Tab A: the spelling
+ * and server lists left their descriptions one word a line, the fields showed "autc", the buttons ran off the edge.
+ */
+body:not(.is-phone) .blueproof-settings .setting-item {
+	flex-wrap: wrap;
+	row-gap: var(--size-4-2);
+}
+
+body:not(.is-phone) .blueproof-settings .setting-item-info {
+	flex: 1 1 16em;
+	min-width: 0;
+}
+
+body:not(.is-phone) .blueproof-settings .setting-item-control {
+	/* its own width, the rest to the description as before; on a line of its own, at the right */
+	flex: 0 1 auto;
+	margin-inline-start: auto;
+	flex-wrap: wrap;
+	max-width: 100%;
+}
+
+body:not(.is-phone) .blueproof-settings .setting-item-control select {
+	max-width: 100%;
+}
+
+body:not(.is-phone) .blueproof-settings .setting-item-control input[type='text'],
+body:not(.is-phone) .blueproof-settings .setting-item-control input[type='password'] {
+	min-width: 10em;
+}

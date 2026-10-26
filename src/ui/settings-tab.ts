@@ -61,16 +61,19 @@ const SPELLING_HINTS: Record<string, string> = {
 /** What Automatic is on this computer: Windows' checker on Windows, Hunspell elsewhere. */
 const AUTO_SPELLING = Platform.isWin ? 'windows' : 'hunspell';
 
-/** The spelling choices, Automatic named by what it is here (the rule for every system was read as the choice). */
+/**
+ * The spelling choices. What Automatic is here (the rule for every system was read as the choice) is said first in its
+ * description: in the list it made the row too wide for a tablet's settings (2026-10-26).
+ */
 const SPELLING_CHOICES: Record<string, string> = {
 	...SPELLING_ENGINES,
-	auto: `Automatic (here: ${Platform.isWin ? "Windows' spell checker" : 'Hunspell'})`,
+	auto: 'Automatic',
 };
 
 /** The description under the spelling choice: what it does here. */
 const spellingHint = (choice: string): string =>
 	choice === 'auto'
-		? `${SPELLING_HINTS[AUTO_SPELLING]!.replace(BUILTIN_OUT, '')} (${Platform.isWin ? 'On macOS and Linux: Hunspell.' : "On Windows: Windows' spell checker."})${BUILTIN_OUT}`
+		? `Here: ${Platform.isWin ? "Windows' spell checker" : 'Hunspell'}. ${SPELLING_HINTS[AUTO_SPELLING]!.replace(BUILTIN_OUT, '')} (${Platform.isWin ? 'On macOS and Linux: Hunspell.' : "On Windows: Windows' spell checker."})${BUILTIN_OUT}`
 		: (SPELLING_HINTS[choice] ?? '');
 
 /** "1 entry", "12 entries". */
@@ -91,6 +94,8 @@ export class BlueProofSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: BlueProofPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+		// styles.css: rows that wrap when the window is too narrow for the description and the control side by side
+		this.containerEl.addClass('blueproof-settings');
 	}
 
 	getControlValue(key: string): unknown {
